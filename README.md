@@ -68,7 +68,7 @@ HospitalManagementSystem/
 sh
 Copy
 Edit
-git clone https://github.com/YuvrajKG/HospitalManagementSystem.git
+git clone https://github.com/YUVRAJKG365/HospitalManagementSystem-YKG365.git
 cd HospitalManagementSystem
 
 3️⃣ Install Required Dependencies
