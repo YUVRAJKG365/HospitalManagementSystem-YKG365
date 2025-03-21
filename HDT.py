@@ -3396,3 +3396,10 @@ elif choice == "Logout":
 #------------------- Display Message When Not Authenticated ------------------
 if not st.session_state['authenticated']:
     st.info("Please login to access and use the Hospital Management System features.")
+
+
+
+# Proprietary License - All Rights Reserved
+# Copyright (C) 2025 Yuvraj Kumar Gond
+# Unauthorized copying or distribution of this file is strictly prohibited.
+
