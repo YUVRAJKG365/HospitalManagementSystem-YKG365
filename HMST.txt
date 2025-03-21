@@ -380,3 +380,11 @@ CREATE TABLE users (
     full_name VARCHAR(100) NOT NULL,
     user_role VARCHAR(20) NOT NULL
 );
+
+
+
+
+# Proprietary License - All Rights Reserved
+# Copyright (C) 2025 Yuvraj Kumar Gond
+# Unauthorized copying or distribution of this file is strictly prohibited.
+
