@@ -1,18 +1,21 @@
 import hashlib
-import logging
 import os
 import tempfile
 import time
-from datetime import datetime
 from pathlib import Path
+from random import random
 import plotly.express as px
-import mysql.connector as sq
-import numpy as np
-import pandas as pd
 import plotly.graph_objects as go
-import streamlit as st
 from dotenv import load_dotenv
 from fpdf import FPDF
+from database_utils import *
+
+st.set_page_config(
+    page_title="Hospital Management System",  # Title of the page
+    layout="wide",                          # Use the full width of the screen
+    page_icon="🏥",                         # Icon for the page (hospital emoji)
+    initial_sidebar_state="expanded"        # Sidebar is expanded by default
+)
 
 
 # Load environment variables
@@ -211,21 +214,7 @@ def startup_animation():
     st.rerun()  # Rerun the app to display the login page
 
 
-# ------------------ Database Connection ------------------
-def connection():
-    try:
-        con = sq.connect(host="localhost", user="root", password=".#RamJi.", database="HospitalManagement")
-        if con.is_connected():
-            logging.info("Database connection established successfully.")
-            return con
-        else:
-            st.error("Database Not Connected!")
-            logging.error("Database connection failed.")
-            return None
-    except sq.Error as er:
-        st.error(f"Error: {er}")
-        logging.error(f"Database connection error: {er}")
-        return None
+
 
 
 # ------------------ Hash Password ------------------
@@ -438,6 +427,541 @@ def view_patients():
         st.dataframe(patient_data)
 
 
+# Chatbot response generation
+import random  # Add this import at the top of your file
+import streamlit as st
+from datetime import datetime
+
+
+def generate_response(user_input):
+    user_input_lower = user_input.lower()
+    user_role = st.session_state.get('user_role')
+
+    # Enhanced greeting responses
+    greeting_responses = [
+        "Hello there! How can I assist you with hospital services today?",
+        "Hi! Welcome to Hospital Management System. What can I do for you?",
+        "Greetings! I'm here to help with your hospital needs. What would you like to do?"
+    ]
+
+    # Enhanced farewell responses
+    farewell_responses = [
+        "Goodbye! Wishing you good health!",
+        "Have a wonderful day! Don't hesitate to return if you need more assistance.",
+        "Take care! Remember we're here 24/7 if you need us."
+    ]
+
+    # Common responses
+    if any(word in user_input_lower for word in ["hello", "hi", "hey", "greetings"]):
+        return random.choice(greeting_responses)
+
+    if any(word in user_input_lower for word in ["thank", "thanks", "appreciate","thank you"]):
+        appreciation_responses = [
+            "You're very welcome! It's my pleasure to assist you.",
+            "No problem at all! Is there anything else I can help with?",
+            "Happy to help! Don't hesitate to ask if you have more questions."
+        ]
+        return random.choice(appreciation_responses)
+
+    if any(word in user_input_lower for word in ["bye", "goodbye", "see you"]):
+        return random.choice(farewell_responses)
+
+    # Section navigation with more natural language
+    section_mapping = {
+        "Patient History": {
+            "keywords": ["patients", "history", "patient record", "consultant record", "records"],
+            "description": "The Patient History section lets you view and download the records of patient"
+        },
+        "billing": {
+            "keywords": ["bill", "payment", "invoice", "charge", "fee"],
+            "description": "The Billing section helps you view and manage hospital bills and payments."
+        },
+        "appointments": {
+            "keywords": ["appointment", "schedule", "booking", "visit", "consultation"],
+            "description": "The Appointments section lets you book, view appointments."
+        }
+    }
+
+    # Check if we're returning from a navigation
+    if "just_navigated" in st.session_state:
+        response = st.session_state.just_navigated
+        del st.session_state.just_navigated
+        return response
+
+    # Detect section requests
+    for section, data in section_mapping.items():
+        if any(keyword in user_input_lower for keyword in data["keywords"]):
+            confirm_responses = [
+                f"I noticed you mentioned {section}. Would you like me to take you to the {section} section?",
+                f"It sounds like you're interested in {section}. Should I open that section for you?",
+                f"The {section} section might help with that. Want me to navigate there?"
+            ]
+            st.session_state.pending_section = section
+            return random.choice(confirm_responses)
+
+    # Handle confirmation for section navigation
+    if "pending_section" in st.session_state and user_input_lower in ["yes", "y", "ok", "sure", "please"]:
+        section = st.session_state.pending_section
+        del st.session_state.pending_section
+
+        navigation_responses = [
+            f"Taking you to the {section} section now...",
+            f"Opening the {section} section for you...",
+            f"Navigating to {section} as requested..."
+        ]
+
+        # Store the response to show after navigation
+        st.session_state.just_navigated = random.choice(navigation_responses)
+        # Change the active tab
+        st.session_state.active_tab = section
+        return st.session_state.just_navigated
+
+    # Enhanced appointment booking flow
+    if "appointment_state" in st.session_state and st.session_state.appointment_state["step"] > 1:
+        return handle_appointment_booking(user_input, user_role)
+
+    if any(word in user_input_lower for word in ["book", "schedule", "appointment", "see doctor"]):
+        if "appointment_state" not in st.session_state:
+            st.session_state.appointment_state = {
+                "step": 1,
+                "patient_name": "",
+                "department": "",
+                "doctor_name": "",
+                "date": "",
+                "time": ""
+            }
+        booking_responses = [
+            "I can help book an appointment. Could you tell me the patient's name?",
+            "Appointment booking started. Please provide the patient's name to begin."
+        ]
+        return random.choice(booking_responses)
+
+    # Enhanced help response
+    if "help" in user_input_lower or "what can you do" in user_input_lower:
+        help_responses = [
+            "I can help with: booking appointments, billing questions, patient records, emergency services, and more. What do you need help with?",
+            "I specialize in hospital management tasks like appointments, billing, patient records, and room management. How can I assist you?",
+            "My capabilities include: appointment scheduling, bill payments, medical records access, and hospital services information."
+        ]
+        return random.choice(help_responses)
+
+    # Default response with suggestions
+    suggestion_responses = [
+        "I'm not quite sure what you're asking. You might want to try:",
+        "Could you clarify? Here are some things I can help with:",
+        "I might need more details. Here are some options:"
+    ]
+
+    suggestions = [
+        "• Book an appointment with a doctor",
+        "• Check your medical bills",
+        "• I'm here to serve you the best service"
+    ]
+
+    return (
+        f"{random.choice(suggestion_responses)}\n\n"
+        f"{chr(10).join(random.sample(suggestions, 3))}\n\n"
+        "Or anything else you need help with!"
+    )
+
+
+# Custom CSS for chatbot interface
+st.markdown(
+    """
+    <style>
+    /* Chat container with scroll */
+    .chat-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 15px;
+        scroll-behavior: smooth;
+    }
+
+    /* Message bubbles */
+    .message {
+        margin: 10px 0;
+        padding: 12px 15px;
+        border-radius: 18px;
+        max-width: 70%;
+        word-wrap: break-word;
+        position: relative;
+        animation: fadeIn 0.3s ease;
+    }
+
+    /* User message */
+    .user-message {
+        background-color: #4B0082;
+        color: white;
+        margin-left: auto;
+        border-bottom-right-radius: 4px;
+    }
+
+    /* Bot message */
+    .bot-message {
+        background-color: #e5e5ea;
+        color: black;
+        margin-right: auto;
+        border-bottom-left-radius: 4px;
+    }
+
+    /* Message time */
+    .message-time {
+        font-size: 0.7em;
+        color: #999;
+        margin-top: 5px;
+        text-align: right;
+    }
+
+    /* Input area - fixed at bottom */
+    .input-container {
+        position: sticky;
+        bottom: 0;
+        background: white;
+        padding: 10px;
+        border-top: 1px solid #eee;
+    }
+
+    /* Input field */
+    .input-field {
+        width: 100%;
+        padding: 12px 15px;
+        border: 1px solid #ddd;
+        border-radius: 20px;
+        outline: none;
+        font-size: 16px;
+    }
+
+    /* Send button */
+    .send-button {
+        margin-top: 10px;
+        padding: 10px 20px;
+        background-color: #4B0082;
+        color: white;
+        border: none;
+        border-radius: 20px;
+        cursor: pointer;
+        font-size: 16px;
+        transition: background-color 0.3s;
+        width: 100%;
+    }
+
+    .send-button:hover {
+        background-color: #5a1199;
+    }
+
+    /* Spinner animation */
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .spinner {
+        border: 3px solid rgba(0,0,0,0.1);
+        border-radius: 50%;
+        border-top: 3px solid #4B0082;
+        width: 20px;
+        height: 20px;
+        animation: spin 1s linear infinite;
+        margin-right: 10px;
+    }
+
+    /* Generating message */
+    .generating {
+        display: flex;
+        align-items: center;
+        color: #666;
+        font-style: italic;
+        margin: 10px 0;
+    }
+
+    /* Fade in animation */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Title styling */
+    .chatbot-title {
+        text-align: center;
+        color: #4B0082;
+        margin-bottom: 20px;
+        font-size: 24px;
+        position: sticky;
+        top: 0;
+        background: white;
+        padding: 10px 0;
+        z-index: 100;
+    }
+
+    /* Section suggestion buttons */
+    .section-suggestion {
+        display: inline-block;
+        margin: 5px;
+        padding: 8px 12px;
+        background-color: #f0f0f0;
+        border-radius: 15px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .section-suggestion:hover {
+        background-color: #4B0082;
+        color: white;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# Initialize session state for chat history
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+# Initialize session state for generating response
+if "generating_response" not in st.session_state:
+    st.session_state.generating_response = False
+
+
+def handle_appointment_booking(user_input,user_role):
+    if user_role not in ["Admin", "Doctor","Nurse", "Receptionist","Patient"]:  # Example role check
+        return "❌ You don't have permission to book appointments."
+    if "appointment_state" not in st.session_state:
+        st.session_state.appointment_state = {
+            "step": 1,
+            "patient_name": "",
+            "department": "",
+            "doctor_name": "",
+            "date": "",
+            "time": ""
+        }
+
+    state = st.session_state.appointment_state
+
+    if state["step"] == 1:
+        state["step"] = 2
+        return "To schedule an appointment, please provide the patient's full name:"
+
+    elif state["step"] == 2:
+        state["patient_name"] = user_input
+        state["step"] = 3
+
+        # Fetch available departments
+        department_data = fetch_data("SELECT DISTINCT department FROM doctor", "doctor", columns=["Department"])
+        if department_data.empty:
+            del st.session_state.appointment_state
+            return "No departments available. Please contact the administrator."
+
+        depts = ", ".join(department_data["Department"].tolist())
+        return f"Available departments: {depts}. Please specify which department you want:"
+
+    elif state["step"] == 3:
+        department = user_input.title()
+        state["department"] = department
+
+        # Fetch doctors in this department
+        query = f"""
+            SELECT s.staff_name AS doctor_name, s.shift
+            FROM doctor d
+            JOIN staff s ON d.staff_id = s.id
+            WHERE d.department = '{department}'
+        """
+        doctor_data = fetch_data(query, "doctor", columns=["Doctor Name", "Shift"])
+
+        if doctor_data.empty:
+            del st.session_state.appointment_state
+            return f"No doctors found in the {department} department. Please choose another department."
+
+        doctors = ", ".join(doctor_data["Doctor Name"].tolist())
+        state["step"] = 4
+        return f"Available doctors in {department}: {doctors}. Please specify which doctor you prefer:"
+
+    elif state["step"] == 4:
+        state["doctor_name"] = user_input.title()
+        state["step"] = 5
+        return "Please enter the appointment date (YYYY-MM-DD format):"
+
+    elif state["step"] == 5:
+        try:
+            datetime.strptime(user_input, "%Y-%m-%d")
+            state["date"] = user_input
+            state["step"] = 6
+            return "Please enter the appointment time (HH:MM format, 24-hour clock):"
+        except ValueError:
+            return "Invalid date format. Please enter date in YYYY-MM-DD format:"
+
+    elif state["step"] == 6:
+        try:
+            datetime.strptime(user_input, "%H:%M")
+            state["time"] = user_input
+            state["step"] = 7
+
+            confirmation = (
+                f"Please confirm the appointment details:\n\n"
+                f"Patient: {state['patient_name']}\n"
+                f"Department: {state['department']}\n"
+                f"Doctor: {state['doctor_name']}\n"
+                f"Date: {state['date']}\n"
+                f"Time: {state['time']}\n\n"
+                f"Type 'confirm' to book or 'cancel' to start over."
+            )
+            return confirmation
+        except ValueError:
+            return "Invalid time format. Please enter time in HH:MM format (24-hour clock):"
+
+    elif state["step"] == 7:
+        if user_input.lower() == "confirm":
+            try:
+                insert_data(
+                    """
+                    INSERT INTO appointments (patient_name, doctor_name, appointment_date, appointment_time)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (state["patient_name"], state["doctor_name"], state["date"], state["time"])
+                )
+                del st.session_state.appointment_state
+                return "Appointment booked successfully! You can view it in the Appointments section."
+            except Exception as e:
+                del st.session_state.appointment_state
+                return f"Error booking appointment: {str(e)}"
+        elif user_input.lower() == "cancel":
+            del st.session_state.appointment_state
+            return "Appointment booking cancelled. How else can I help you?"
+        else:
+            return "Please type 'confirm' to book the appointment or 'cancel' to start over."
+
+
+# In the response handling section:
+if st.session_state.generating_response:
+    last_user_message = st.session_state.chat_history[-1]["content"]
+    time.sleep(1)
+
+    # Check if we're in the middle of an appointment booking
+    if "appointment_state" in st.session_state:
+        bot_response = handle_appointment_booking(last_user_message, st.session_state.get('user_role', 'Patient'))
+    else:
+        bot_response = generate_response(last_user_message)
+
+    st.session_state.chat_history.append({
+        "role": "bot",
+        "content": bot_response,
+        "time": datetime.now().strftime("%H:%M")
+    })
+    st.session_state.generating_response = False
+    st.rerun()
+
+# Function to display chat messages
+def display_chat():
+    # Chat container with scroll
+    st.markdown('<div class="chat-container" id="chat-container">', unsafe_allow_html=True)
+
+    for message in st.session_state.chat_history:
+        if message["role"] == "user":
+            st.markdown(
+                f'<div class="message user-message">{message["content"]}<div class="message-time">{message["time"]}</div></div>',
+                unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                f'<div class="message bot-message">{message["content"]}<div class="message-time">{message["time"]}</div></div>',
+                unsafe_allow_html=True
+            )
+
+    if st.session_state.generating_response:
+        st.markdown(
+            '<div class="generating"><div class="spinner"></div>Generating response...</div>',
+            unsafe_allow_html=True
+        )
+
+    st.markdown('</div>', unsafe_allow_html=True)  # Close chat-container
+
+    # Input area (fixed at bottom)
+    with st.form(key='chat_form', clear_on_submit=True):
+        st.markdown('<div class="input-container">', unsafe_allow_html=True)
+
+        user_input = st.text_input(
+            "Type your message...",
+            value="",  # Ensures empty after submit
+            key="user_input",
+            placeholder="Ask me anything about the hospital system...",
+            label_visibility="collapsed"
+        )
+
+        submit_button = st.form_submit_button("Send", use_container_width=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)  # Close input-container
+
+    st.markdown('</div>', unsafe_allow_html=True)  # Close main-container
+
+    # Handle form submission
+    if submit_button and user_input.strip():
+        # Add user message to chat history
+        st.session_state.chat_history.append({
+            "role": "user",
+            "content": user_input,
+            "time": datetime.now().strftime("%H:%M")
+        })
+
+        # Clear the input by forcing a rerun
+        st.session_state.generating_response = True
+        st.rerun()
+
+    # Auto-scroll JavaScript remains the same...
+
+# Main app function
+def chatbot_page():
+    st.markdown('<div class="header-lightblue"><h3>🤖 Hospital Management System Assistant</h3></div>',
+                unsafe_allow_html=True)
+    # Check authentication
+    if 'authenticated' not in st.session_state or not st.session_state['authenticated']:
+        st.warning("Please login to access the chatbot")
+        return
+
+    # Display chat interface
+    st.markdown('<div class="main-container">', unsafe_allow_html=True)
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+
+    for message in st.session_state.chat_history:
+        if message["role"] == "user":
+            st.markdown(
+                f'<div class="message user-message">{message["content"]}<div class="message-time">{message["time"]}</div></div>',
+                unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                f'<div class="message bot-message">{message["content"]}<div class="message-time">{message["time"]}</div></div>',
+                unsafe_allow_html=True
+            )
+
+    if st.session_state.generating_response:
+        st.markdown(
+            '<div class="generating"><div class="spinner"></div>Generating response...</div>',
+            unsafe_allow_html=True
+        )
+
+    st.markdown('</div>', unsafe_allow_html=True)  # Close chat-container
+
+    # Input area - using a form to properly handle input
+    with st.form(key='chat_input_form'):
+        user_input = st.text_input("Type your message...", "", key="user_input",
+                                   placeholder="Ask me anything about the hospital system...",
+                                   label_visibility="collapsed")
+
+        if st.form_submit_button("Send"):
+            if user_input.strip():
+                # Add user message to chat history
+                st.session_state.chat_history.append({
+                    "role": "user",
+                    "content": user_input,
+                    "time": datetime.now().strftime("%H:%M")
+                })
+
+                # Set generating response state
+                st.session_state.generating_response = True
+                st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)  # Close main-container
+
+
 # ------------------ View Patient History ------------------
 def view_patient_history():
     """
@@ -454,58 +978,8 @@ def view_patient_history():
         st.dataframe(patient_history)
 
 
-# ------------------ Fetch Data ------------------
-def fetch_data(query, table_name, columns=None, default_columns=None, params=None):
-    try:
-        con = connection()
-        if con:
-            cur = con.cursor()
-            if params:
-                cur.execute(query, params)
-            else:
-                cur.execute(query)
-            data = cur.fetchall()
-
-            if columns:
-                col_names = columns
-            else:
-                if "COUNT" in query or "SUM" in query or "GROUP BY" in query:
-                    col_names = ["category", "count"]
-                else:
-                    cur.execute(f"SHOW COLUMNS FROM {table_name}")
-                    col_names = [col[0] for col in cur.fetchall()]
-
-            con.close()
-
-            if not data:
-                return pd.DataFrame(columns=default_columns or col_names)
-
-            if len(data[0]) != len(col_names):
-                col_names = col_names[:len(data[0])]
-
-            return pd.DataFrame(data, columns=col_names)
-        else:
-            return pd.DataFrame(columns=default_columns or columns if columns else [])
-    except sq.Error as er:
-        st.error(f"Error fetching data: {er}")
-        logging.error(f"Error fetching data: {er}")
-        return pd.DataFrame(columns=default_columns or columns if columns else [])
 
 
-# ------------------ Insert Data ------------------
-def insert_data(query, values):
-    try:
-        values = tuple(int(val) if isinstance(val, (np.int64, np.int32)) else val for val in values)
-        con = connection()
-        if con:
-            cur = con.cursor()
-            cur.execute(query, values)
-            con.commit()
-            st.success("Data inserted successfully!")
-            logging.info(f"Data inserted successfully: {query}")
-    except sq.Error as er:
-        st.error(f"Error: {er}")
-        logging.error(f"Error inserting data: {er}")
 
 
 def log_user_action(username, role, action):
@@ -2501,12 +2975,21 @@ def schedule_appointment():
     # Fetch patient names
     patient_data = fetch_data("SELECT id, name FROM patients", "patients", columns=["id", "name"])
 
-    if patient_data.empty:
-        st.warning("No patients found. Please add patients first.")
-        return
+    # Create a radio button to choose between existing or new patient
+    patient_option = st.radio("Patient Type", ["Select Existing Patient", "Enter New Patient"])
 
-    # Select patient
-    patient_name = st.selectbox("Select Patient", patient_data["name"])
+    if patient_option == "Select Existing Patient":
+        if patient_data.empty:
+            st.warning("No patients found. Please add patients first or choose 'Enter New Patient'.")
+            return
+        # Select patient from dropdown
+        patient_name = st.selectbox("Select Patient", patient_data["name"])
+    else:
+        # Enter new patient name manually
+        patient_name = st.text_input("Enter Patient Name*", key="new_patient_name")
+        if not patient_name:
+            st.warning("Please enter a patient name")
+            return
 
     # Fetch unique departments from the doctor table
     department_data = fetch_data("SELECT DISTINCT department FROM doctor", "doctor", columns=["Department"])
@@ -2542,6 +3025,13 @@ def schedule_appointment():
     appointment_time = st.time_input("Appointment Time*")
 
     if st.button("Schedule Appointment"):
+        # If new patient was entered, add them to the patients table first
+        if patient_option == "Enter New Patient":
+            insert_data(
+                "INSERT INTO patients (name) VALUES (%s)",
+                (patient_name,)
+            )
+
         # Insert appointment data
         insert_data(
             """
@@ -2551,7 +3041,6 @@ def schedule_appointment():
             (patient_name, doctor_name, appointment_date, appointment_time)
         )
         st.success("Appointment scheduled successfully!")
-
 
 def view_appointments():
     """
@@ -3137,30 +3626,30 @@ if "passcode_verified" not in st.session_state:
 if st.session_state.get('authenticated'):
     if st.session_state['user_role'] == "Admin":
         menu = [
-            "Dashboard", "Advanced Search", "Attendance Dashboard", "Doctor Section", "Manage Patients",
+            "Dashboard","Chatbot", "Advanced Search", "Attendance Dashboard", "Doctor Section", "Manage Patients",
             "Emergency Unit", "Emergency Dashboard", "Room Info", "Billing", "Appointments", "Inventory",
             "Staff", "Patient History", "Ambulance Service", "Generate Reports", "Export Data", "Logout"
         ]
     elif st.session_state['user_role'] == "Doctor":
         menu = [
-            "Dashboard", "Advanced Search", "Attendance Dashboard", "Doctor Section", "Manage Patients",
-            "Emergency Unit", "Emergency Dashboard", "Room Info", "Appointments", "Patient History", "Logout"
+            "Dashboard","Chatbot", "Advanced Search", "Attendance Dashboard", "Doctor Section", "Manage Patients",
+            "Emergency Unit", "Emergency Dashboard", "Room Info", "Appointments", "Patient History",  "Logout"
         ]
     elif st.session_state['user_role'] == "Receptionist":
         menu = [
-            "Dashboard", "Advanced Search", "Attendance Dashboard", "Doctor Section", "Emergency Unit",
-            "Emergency Dashboard", "Appointments", "Billing", "Inventory", "Generate Reports", "Export Data", "Logout"
+            "Dashboard","Chatbot", "Advanced Search", "Attendance Dashboard", "Doctor Section", "Emergency Unit",
+            "Emergency Dashboard", "Appointments", "Billing", "Inventory", "Generate Reports", "Export Data",  "Logout"
         ]
     elif st.session_state['user_role'] == "Patient":
         menu = [
-            "Dashboard","Advanced Search","Doctor Section", "Emergency Unit", "Patient History",
-            "Appointments", "Logout"
+            "Dashboard", "Chatbot","Advanced Search","Doctor Section", "Emergency Unit", "Patient History",
+            "Appointments",  "Logout"
         ]
     elif st.session_state['user_role'] == "Nurse":
         menu = [
-            "Dashboard", "Advanced Search", "Attendance Dashboard", "Doctor Section",
+            "Dashboard","Chatbot", "Advanced Search", "Attendance Dashboard", "Doctor Section",
             "Manage Patients",
-            "Emergency Unit", "Emergency Dashboard", "Room Info", "Appointments","Inventory", "Patient History","Generate Reports", "Export Data", "Logout"
+            "Emergency Unit", "Emergency Dashboard", "Room Info", "Appointments","Inventory", "Patient History","Generate Reports", "Export Data",  "Logout"
         ]
 else:
     menu = ["Login", "Register"]
@@ -3386,6 +3875,13 @@ elif choice == "Doctor Section":
     access_control()
     doctor_section()
 
+elif choice == "Chatbot":
+    access_control()
+    chatbot_page()
+
+    # Chatbot is available to all authenticated users
+      # Call the chatbot main function
+
 elif choice == "Logout":
     if st.session_state.get('authenticated'):
         logout()
@@ -3396,7 +3892,6 @@ elif choice == "Logout":
 #------------------- Display Message When Not Authenticated ------------------
 if not st.session_state['authenticated']:
     st.info("Please login to access and use the Hospital Management System features.")
-
 
 
 # Proprietary License - All Rights Reserved
