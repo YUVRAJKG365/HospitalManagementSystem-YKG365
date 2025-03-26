@@ -9,6 +9,10 @@ import plotly.graph_objects as go
 from dotenv import load_dotenv
 from fpdf import FPDF
 from database_utils import *
+from datetime import datetime
+import random
+import streamlit as st
+
 
 st.set_page_config(
     page_title="Hospital Management System",  # Title of the page
@@ -428,9 +432,6 @@ def view_patients():
 
 
 # Chatbot response generation
-import random  # Add this import at the top of your file
-import streamlit as st
-from datetime import datetime
 
 
 def generate_response(user_input):
@@ -455,7 +456,7 @@ def generate_response(user_input):
     if any(word in user_input_lower for word in ["hello", "hi", "hey", "greetings"]):
         return random.choice(greeting_responses)
 
-    if any(word in user_input_lower for word in ["thank", "thanks", "appreciate","thank you"]):
+    if any(word in user_input_lower for word in ["thank you", "thanks", "appreciate"]):
         appreciation_responses = [
             "You're very welcome! It's my pleasure to assist you.",
             "No problem at all! Is there anything else I can help with?",
@@ -467,39 +468,18 @@ def generate_response(user_input):
         return random.choice(farewell_responses)
 
     # Section navigation with more natural language
-    section_mapping = {
+    section_mapping = st.session_state.get('section_mapping', {
         "Patient History": {
             "keywords": ["patients", "history", "patient record", "consultant record", "records"],
-            "description": "The Patient History section lets you view and download the records of patient"
+            "description": "The Patient History section lets you view and download patient records."
         },
-        "billing": {
-            "keywords": ["bill", "payment", "invoice", "charge", "fee"],
-            "description": "The Billing section helps you view and manage hospital bills and payments."
-        },
-        "appointments": {
-            "keywords": ["appointment", "schedule", "booking", "visit", "consultation"],
-            "description": "The Appointments section lets you book, view appointments."
+        "Appointments": {
+            "keywords": ["appointment for consult", "schedule", "booking", "visit", "consultation"],
+            "description": "The Appointments section lets you book and view appointments."
         }
-    }
+    })
 
-    # Check if we're returning from a navigation
-    if "just_navigated" in st.session_state:
-        response = st.session_state.just_navigated
-        del st.session_state.just_navigated
-        return response
-
-    # Detect section requests
-    for section, data in section_mapping.items():
-        if any(keyword in user_input_lower for keyword in data["keywords"]):
-            confirm_responses = [
-                f"I noticed you mentioned {section}. Would you like me to take you to the {section} section?",
-                f"It sounds like you're interested in {section}. Should I open that section for you?",
-                f"The {section} section might help with that. Want me to navigate there?"
-            ]
-            st.session_state.pending_section = section
-            return random.choice(confirm_responses)
-
-    # Handle confirmation for section navigation
+    # Check for pending navigation confirmation
     if "pending_section" in st.session_state and user_input_lower in ["yes", "y", "ok", "sure", "please"]:
         section = st.session_state.pending_section
         del st.session_state.pending_section
@@ -510,17 +490,15 @@ def generate_response(user_input):
             f"Navigating to {section} as requested..."
         ]
 
-        # Store the response to show after navigation
         st.session_state.just_navigated = random.choice(navigation_responses)
-        # Change the active tab
         st.session_state.active_tab = section
         return st.session_state.just_navigated
 
     # Enhanced appointment booking flow
-    if "appointment_state" in st.session_state and st.session_state.appointment_state["step"] > 1:
+    if "appointment_state" in st.session_state and st.session_state.appointment_state.get("step", 0) > 1:
         return handle_appointment_booking(user_input, user_role)
 
-    if any(word in user_input_lower for word in ["book", "schedule", "appointment", "see doctor"]):
+    if any(word in user_input_lower for word in ["i want to book appointment with doctor", "visiting", "appointment", "see doctor"]):
         if "appointment_state" not in st.session_state:
             st.session_state.appointment_state = {
                 "step": 1,
@@ -536,8 +514,15 @@ def generate_response(user_input):
         ]
         return random.choice(booking_responses)
 
+    # Detect section requests
+    for section, data in section_mapping.items():
+        if any(keyword in user_input_lower for keyword in data["keywords"]):
+            st.session_state.pending_section = section
+            return f"It sounds like you're interested in {section}. Should I open that section for you?"
+
+
     # Enhanced help response
-    if "help" in user_input_lower or "what can you do" in user_input_lower:
+    if "help me" or "what can you do?" in user_input_lower:
         help_responses = [
             "I can help with: booking appointments, billing questions, patient records, emergency services, and more. What do you need help with?",
             "I specialize in hospital management tasks like appointments, billing, patient records, and room management. How can I assist you?",
@@ -555,14 +540,17 @@ def generate_response(user_input):
     suggestions = [
         "• Book an appointment with a doctor",
         "• Check your medical bills",
-        "• I'm here to serve you the best service"
+        "• View available hospital rooms",
+        "• Get emergency assistance",
+        "• Check medicine inventory"
     ]
 
     return (
         f"{random.choice(suggestion_responses)}\n\n"
         f"{chr(10).join(random.sample(suggestions, 3))}\n\n"
-        "Or anything else you need help with!"
+        "Or ask about any other hospital service!"
     )
+
 
 
 # Custom CSS for chatbot interface
@@ -887,6 +875,8 @@ def display_chat():
         )
 
         submit_button = st.form_submit_button("Send", use_container_width=True)
+        st.rerun
+
 
         st.markdown('</div>', unsafe_allow_html=True)  # Close input-container
 
@@ -2251,7 +2241,7 @@ def patient_demographics_card():
 
 
 def icu_room_details():
-    """Display ICU room details with availability and allocation."""
+    """Display ICU room details with availability and allocation in proper numerical order."""
     try:
         # Fetch ICU room data
         icu_data = fetch_data(
@@ -2265,26 +2255,74 @@ def icu_room_details():
             st.warning("No ICU room data available.")
             return
 
+        # Extract numerical part from room number for sorting
+        icu_data['Room Num'] = icu_data['Room Number'].str.extract('(\d+)').astype(int)
+
+        # Sort by the numerical value
+        icu_data = icu_data.sort_values('Room Num')
+
+        # Drop the temporary column
+        icu_data = icu_data.drop(columns=['Room Num'])
+
+        # Reset index for clean display
+        icu_data = icu_data.reset_index(drop=True)
+
+        # Display raw data first
+        st.write("### ICU Room Details")
+        st.dataframe(icu_data)
+
+        # Create a mapping of room numbers to their status
+        room_status = icu_data.set_index('Room Number')['Status'].to_dict()
+
+        # Prepare data for plotting - ensure all rooms show both statuses
+        plot_data = []
+        for room, status in room_status.items():
+            plot_data.append({'Room Number': room, 'Status': status, 'Count': 1})
+            # Add opposite status with count 0
+            opposite_status = "Booked" if status == "Not Booked" else "Not Booked"
+            plot_data.append({'Room Number': room, 'Status': opposite_status, 'Count': 0})
+
+        plot_df = pd.DataFrame(plot_data)
+
+        # Extract numerical part for sorting the plot data
+        plot_df['Room Num'] = plot_df['Room Number'].str.extract('(\d+)').astype(int)
+        plot_df = plot_df.sort_values('Room Num')
+        plot_df = plot_df.drop(columns=['Room Num'])
+
         # Create a bar chart for ICU room status
         fig = px.bar(
-            icu_data,
+            plot_df,
             x="Room Number",
-            y="Status",
-            title="🏥 ICU Room Status",
+            y="Count",
+            title="🏥 ICU Room Status (Numerical Order)",
             color="Status",
             color_discrete_sequence=["#FF6347", "#87CEEB"],  # Red for booked, Blue for available
-            labels={"Room Number": "Room Number", "Status": "Status"}
+            labels={"Room Number": "Room Number", "Count": ""},
+            category_orders={"Status": ["Booked", "Not Booked"]},
+            barmode='group'
         )
+
+        # Customize the layout
+        fig.update_layout(
+            yaxis_title="",
+            showlegend=True,
+            xaxis={
+                'categoryorder': 'array',
+                'categoryarray': sorted(room_status.keys(),
+                                        key=lambda x: int(x.split('-')[1]))
+            }
+        )
+
         st.plotly_chart(fig)
+
     except Exception as e:
         st.error(f"Error fetching ICU room details: {e}")
         logging.error(f"Error in icu_room_details: {e}")
 
-
 def general_room_details():
     """Display general room details with availability and allocation."""
     try:
-        # Fetch general room data
+        # Fetch ALL general room data (both booked and not booked)
         general_data = fetch_data(
             "SELECT room_number, availability FROM rooms WHERE is_icu = FALSE",
             "rooms",
@@ -2296,21 +2334,64 @@ def general_room_details():
             st.warning("No general room data available.")
             return
 
-        # Create a bar chart for general room status
-        fig = px.bar(
-            general_data,
-            x="Room Number",
-            y="Status",
-            title="🏨 General Room Status",
-            color="Status",
-            color_discrete_sequence=["#FF6347", "#87CEEB"],  # Red for booked, Blue for available
-            labels={"Room Number": "Room Number", "Status": "Status"}
+        # Create a function to extract the numeric part for proper sorting
+        def extract_room_number(room_str):
+            try:
+                return int(room_str.split('-')[1])
+            except:
+                return float('inf')  # Put invalid formats at the end
+
+        # Sort the DataFrame by room number numerically
+        general_data['sort_key'] = general_data['Room Number'].apply(extract_room_number)
+        general_data = general_data.sort_values('sort_key').drop('sort_key', axis=1)
+        general_data.reset_index(drop=True, inplace=True)
+
+        # Display the properly ordered data table
+        st.write("### General Room Details ")
+        st.dataframe(general_data)
+
+        # Prepare data for plotting - create separate DataFrames for each status
+        booked_rooms = general_data[general_data['Status'] == 'Booked']
+        available_rooms = general_data[general_data['Status'] == 'Not Booked']
+
+        # Create the figure
+        fig = go.Figure()
+
+        # Add Booked rooms trace
+        fig.add_trace(go.Bar(
+            x=booked_rooms['Room Number'],
+            y=[1]*len(booked_rooms),
+            name='Booked',
+            marker_color='#FF6347',
+            text='Booked',
+            textposition='auto'
+        ))
+
+        # Add Available rooms trace
+        fig.add_trace(go.Bar(
+            x=available_rooms['Room Number'],
+            y=[1]*len(available_rooms),
+            name='Available',
+            marker_color='#87CEEB',
+            text='Available',
+            textposition='auto'
+        ))
+
+        # Update layout
+        fig.update_layout(
+            title='🏨 General Room Status (Properly Ordered)',
+            barmode='group',
+            xaxis_title="Room Number",
+            yaxis_title="",
+            xaxis={'categoryorder': 'array', 'categoryarray': general_data['Room Number'].tolist()},
+            showlegend=True
         )
+
         st.plotly_chart(fig)
+
     except Exception as e:
         st.error(f"Error fetching general room details: {e}")
         logging.error(f"Error in general_room_details: {e}")
-
 
 def revenue_trend_sparkline():
     """Enhanced revenue trend visualization with rainbow colors, annotations, and better formatting."""
@@ -2975,7 +3056,11 @@ def schedule_appointment():
     # Fetch patient names
     patient_data = fetch_data("SELECT id, name FROM patients", "patients", columns=["id", "name"])
 
-    # Create a radio button to choose between existing or new patient
+    if patient_data.empty:
+        st.warning("No patients found. Please add patients first.")
+        return
+
+     # Create a radio button to choose between existing or new patient
     patient_option = st.radio("Patient Type", ["Select Existing Patient", "Enter New Patient"])
 
     if patient_option == "Select Existing Patient":
@@ -3025,13 +3110,6 @@ def schedule_appointment():
     appointment_time = st.time_input("Appointment Time*")
 
     if st.button("Schedule Appointment"):
-        # If new patient was entered, add them to the patients table first
-        if patient_option == "Enter New Patient":
-            insert_data(
-                "INSERT INTO patients (name) VALUES (%s)",
-                (patient_name,)
-            )
-
         # Insert appointment data
         insert_data(
             """
