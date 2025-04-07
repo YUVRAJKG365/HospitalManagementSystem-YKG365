@@ -1,34 +1,6 @@
-# Core Streamlit app
 streamlit
-
-# Data manipulation & plotting
 pandas
 numpy
 plotly
-
-# Time & date handling
-python-dateutil
-
-# Environment variables
 python-dotenv
-
-# File system & utilities
 fpdf
-watchdog
-
-# Random and hashing
-hashlib
-pathlib
-os
-tempfile
-
-# Database (assuming custom helper file)
-# You'll need to make sure `database_utils.py` exists in your repo
-
-# Optional: if you're using any specific DB like SQLite/MySQL/PostgreSQL, include that
-# For example:
-# mysql-connector-python
-# psycopg2-binary
-
-# NOTE: built-in Python modules like os, tempfile, time, datetime, random, hashlib, pathlib
-# do NOT need to be added — they are included with Python itself
