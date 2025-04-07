@@ -12,8 +12,6 @@ def insert_data(query, values):
             cur = con.cursor()
             cur.execute(query, values)
             con.commit()
-            st.success("Data inserted successfully!")
-            logging.info(f"Data inserted successfully: {query}")
     except sq.Error as er:
         st.error(f"Error: {er}")
         logging.error(f"Error inserting data: {er}")

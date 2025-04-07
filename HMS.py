@@ -13,7 +13,6 @@ from datetime import datetime
 import random
 import streamlit as st
 
-
 st.set_page_config(
     page_title="Hospital Management System",  # Title of the page
     layout="wide",                          # Use the full width of the screen
@@ -182,7 +181,7 @@ def startup_animation():
         "🌟 Welcome To 🌟",
         "🏥 The Hospital Management System 🏥",
         "🚀 Project By 🚀",
-        "👨‍💻 YUVRAJ K GOND ‍💻"
+        "👨‍💻 ACCELERATORS 💻"
     ]
 
     container = st.empty()
@@ -1007,6 +1006,10 @@ def mark_attendance(username, role):
         con.commit()
     except sq.Error as er:
         logging.error(f"Error marking attendance: {er}")
+        st.error(f"Failed to mark attendance: {str(er)}")  # Show error to user
+    except Exception as e:
+        logging.error(f"Unexpected error marking attendance: {e}")
+        st.error("An unexpected error occurred while marking attendance")
 
 def attendance_dashboard():
     st.markdown('<div class="header-lightblue"><h3>📊 Attendance Dashboard</h3></div>', unsafe_allow_html=True)
@@ -3972,7 +3975,5 @@ if not st.session_state['authenticated']:
     st.info("Please login to access and use the Hospital Management System features.")
 
 
-# Proprietary License - All Rights Reserved
-# Copyright (C) 2025 Yuvraj Kumar Gond
-# Unauthorized copying or distribution of this file is strictly prohibited.
+
 
