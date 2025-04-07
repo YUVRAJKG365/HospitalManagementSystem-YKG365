@@ -4,3 +4,4 @@ numpy
 plotly
 python-dotenv
 fpdf
+mysql-connector-python
