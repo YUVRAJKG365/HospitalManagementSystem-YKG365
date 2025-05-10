@@ -4,6 +4,10 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+
+logging.basicConfig(level=logging.INFO)
+
+#Function for Insert Method
 def insert_data(query, values):
     try:
         values = tuple(int(val) if isinstance(val, (np.int64, np.int32)) else val for val in values)
@@ -16,13 +20,15 @@ def insert_data(query, values):
         st.error(f"Error: {er}")
         logging.error(f"Error inserting data: {er}")
 
+
+#Establishing the Connection Between Python and MySQl with Specified Database
 def connection():
     try:
         con = sq.connect(
             host="localhost",
             user="root",
             password=".#RamJi.",
-            database="HospitalManagement"
+            database="hms"
         )
         if con.is_connected():
             logging.info("Database connection established successfully.")
@@ -34,6 +40,8 @@ def connection():
         logging.error(f"Database connection error: {er}")
         return None
 
+
+#Function for Fetching Data from the Database of MySQL
 def fetch_data(query, table_name, columns=None, default_columns=None, params=None):
     try:
         con = connection()
@@ -68,3 +76,15 @@ def fetch_data(query, table_name, columns=None, default_columns=None, params=Non
     except sq.Error as er:
         logging.error(f"Error fetching data: {er}")
         return pd.DataFrame(columns=default_columns or columns if columns else [])
+
+
+def get_db_cursor():
+    """Returns a database connection and cursor separately"""
+    try:
+        con = connection()
+        if con:
+            return con, con.cursor()  # Returns (connection, cursor)
+        return None, None
+    except sq.Error as er:
+        logging.error(f"Error getting cursor: {er}")
+        return None, None

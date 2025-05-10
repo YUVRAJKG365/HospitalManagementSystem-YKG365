@@ -4,22 +4,23 @@ import tempfile
 import time
 from pathlib import Path
 from random import random
+from plotly.subplots import make_subplots
 import plotly.express as px
 import plotly.graph_objects as go
 from dotenv import load_dotenv
 from fpdf import FPDF
 from database_utils import *
-from datetime import datetime
+from datetime import datetime, timedelta
 import random
 import streamlit as st
+from decimal import Decimal
 
 st.set_page_config(
     page_title="Hospital Management System",  # Title of the page
-    layout="wide",                          # Use the full width of the screen
-    page_icon="🏥",                         # Icon for the page (hospital emoji)
-    initial_sidebar_state="expanded"        # Sidebar is expanded by default
+    layout="wide",  # Use the full width of the screen
+    page_icon="🏥",  # Icon for the page (hospital emoji)
+    initial_sidebar_state="expanded"  # Sidebar is expanded by default
 )
-
 
 # Load environment variables
 load_dotenv()
@@ -169,7 +170,6 @@ st.markdown(
 
 # ------------------ Animated Startup Screen ------------------
 def glowing_text(text, size=100, color="#FFFFFF"):  # Set text color to white
-    """Returns an HTML string for glowing text effect."""
     return f"""
     <p style="font-size:{size}px; font-weight:bold; text-align:center; color:{color}; 
     text-shadow: 0px 0px 10px #FFFFFF, 0px 0px 20px #FFFFFF, 0px 0px 30px #FFFFFF;">
@@ -215,9 +215,6 @@ def startup_animation():
     container.empty()
     st.session_state["startup_done"] = True
     st.rerun()  # Rerun the app to display the login page
-
-
-
 
 
 # ------------------ Hash Password ------------------
@@ -331,6 +328,8 @@ def show_passcode_screen():
         """,
         unsafe_allow_html=True
     )
+
+
 # -----------------AcessControl-----------------
 def access_control():
     """
@@ -370,11 +369,7 @@ def manage_patients():
 
 
 def view_appointments():
-    """
-    View Appointments feature.
-    Only Admin, Doctor, Receptionist, and Nurse can access this feature.
-    """
-    check_user_role(["Admin", "Doctor", "Receptionist", "Nurse","Patient"])
+    check_user_role(["Admin", "Doctor", "Receptionist", "Nurse", "Patient"])
     st.write("View Appointments Page")
 
 
@@ -473,7 +468,7 @@ def generate_response(user_input):
             "description": "The Patient History section lets you view and download patient records."
         },
         "Appointments": {
-            "keywords": ["appointment for consult", "schedule", "booking", "visit", "consultation"],
+            "keywords": ["appointment for consultation", "schedule", "booking", "visit", "consultation"],
             "description": "The Appointments section lets you book and view appointments."
         }
     })
@@ -497,7 +492,8 @@ def generate_response(user_input):
     if "appointment_state" in st.session_state and st.session_state.appointment_state.get("step", 0) > 1:
         return handle_appointment_booking(user_input, user_role)
 
-    if any(word in user_input_lower for word in ["i want to book appointment with doctor", "visiting", "appointment", "see doctor"]):
+    if any(word in user_input_lower for word in
+           ["i want to book appointment with doctor", "visiting", "appointment", "see doctor"]):
         if "appointment_state" not in st.session_state:
             st.session_state.appointment_state = {
                 "step": 1,
@@ -518,7 +514,6 @@ def generate_response(user_input):
         if any(keyword in user_input_lower for keyword in data["keywords"]):
             st.session_state.pending_section = section
             return f"It sounds like you're interested in {section}. Should I open that section for you?"
-
 
     # Enhanced help response
     if "help me" or "what can you do?" in user_input_lower:
@@ -549,7 +544,6 @@ def generate_response(user_input):
         f"{chr(10).join(random.sample(suggestions, 3))}\n\n"
         "Or ask about any other hospital service!"
     )
-
 
 
 # Custom CSS for chatbot interface
@@ -709,8 +703,8 @@ if "generating_response" not in st.session_state:
     st.session_state.generating_response = False
 
 
-def handle_appointment_booking(user_input,user_role):
-    if user_role not in ["Admin", "Doctor","Nurse", "Receptionist","Patient"]:  # Example role check
+def handle_appointment_booking(user_input, user_role):
+    if user_role not in ["Admin", "Doctor", "Nurse", "Receptionist", "Patient"]:  # Example role check
         return "❌ You don't have permission to book appointments."
     if "appointment_state" not in st.session_state:
         st.session_state.appointment_state = {
@@ -836,6 +830,7 @@ if st.session_state.generating_response:
     st.session_state.generating_response = False
     st.rerun()
 
+
 # Function to display chat messages
 def display_chat():
     # Chat container with scroll
@@ -876,7 +871,6 @@ def display_chat():
         submit_button = st.form_submit_button("Send", use_container_width=True)
         st.rerun
 
-
         st.markdown('</div>', unsafe_allow_html=True)  # Close input-container
 
     st.markdown('</div>', unsafe_allow_html=True)  # Close main-container
@@ -895,6 +889,7 @@ def display_chat():
         st.rerun()
 
     # Auto-scroll JavaScript remains the same...
+
 
 # Main app function
 def chatbot_page():
@@ -967,10 +962,6 @@ def view_patient_history():
         st.dataframe(patient_history)
 
 
-
-
-
-
 def log_user_action(username, role, action):
     try:
         con = connection()
@@ -983,9 +974,13 @@ def log_user_action(username, role, action):
     except sq.Error as er:
         logging.error(f"Error logging user action: {er}")
 
-#--------------AutoAttendenceMArking-----------------------------
+
+# --------------AutoAttendenceMArking-----------------------------
 def mark_attendance(username, role):
     """Mark attendance for a user if not already marked for the day."""
+    # Skip attendance marking for patients
+    if role == "Patient":
+        return
     try:
         con = connection()
         cur = con.cursor()
@@ -1010,6 +1005,7 @@ def mark_attendance(username, role):
     except Exception as e:
         logging.error(f"Unexpected error marking attendance: {e}")
         st.error("An unexpected error occurred while marking attendance")
+
 
 def attendance_dashboard():
     st.markdown('<div class="header-lightblue"><h3>📊 Attendance Dashboard</h3></div>', unsafe_allow_html=True)
@@ -1240,6 +1236,7 @@ def initialize_rooms_and_ambulances():
 # Call the function to initialize rooms and ambulances
 initialize_rooms_and_ambulances()
 
+
 def add_patient():
     check_user_role(["Admin", "Doctor", "Receptionist", "Nurse"])
     try:
@@ -1251,7 +1248,12 @@ def add_patient():
         gender = st.selectbox("Gender*", ["M", "F"])
         address = st.text_area("Address*")
         contact_no = st.text_input("Contact Number*")
-        dob = st.date_input("Date of Birth*")
+        dob = st.date_input(
+            "Date of Birth* (YYYY-MM-DD)",
+            help="Enter date in YYYY-MM-DD format",
+            min_value=datetime(1900, 1, 1).date(),
+            max_value=datetime.today().date()
+        )
 
         # Fetch consultant names and departments from the doctor table
         doctor_data = fetch_data(
@@ -1300,8 +1302,8 @@ def add_patient():
         if st.button("Add Patient"):
             required_fields = [name, age, gender, address, contact_no, dob, consultant_name, date_of_consultancy,
                                department, diseases, fees]
-            if not all(required_fields):
-                st.error("Please fill all required fields (*)")
+            if not all(required_fields) or dob is None:
+                st.error("Please fill all required fields (*) with valid data")
                 logging.warning("Add Patient: Missing required fields.")
             else:
                 # Insert patient data (without role)
@@ -1329,7 +1331,8 @@ def add_patient():
 
 
 def view_patients():
-    st.markdown('<div class="header-lightblue"><h3>📋 Patient Records with Room and Medicine Details</h3></div>', unsafe_allow_html=True)
+    st.markdown('<div class="header-lightblue"><h3>📋 Patient Records with Room and Medicine Details</h3></div>',
+                unsafe_allow_html=True)
     check_user_role(["Admin", "Doctor", "Receptionist", "Nurse"])
 
     # Fetch patient data with room and medicine details
@@ -1457,19 +1460,21 @@ def discharge_patient():
         for _, row in patient_data.iterrows()
     }
     selected_patient = st.selectbox("Select Patient to Discharge", list(patient_options.keys()))
-    patient_id, emergency_patient_id, room_number, is_icu = patient_options.get(selected_patient, (None, None, None, None))
+    patient_id, emergency_patient_id, room_number, is_icu = patient_options.get(selected_patient,
+                                                                                (None, None, None, None))
 
     if selected_patient:
         # Fetch the selected patient's details
         patient_info = patient_data[
             (patient_data["Patient ID"] == patient_id) |
             (patient_data["Emergency Patient ID"] == emergency_patient_id)
-        ]
+            ]
 
         if not patient_info.empty:
             patient_info = patient_info.iloc[0]
             patient_id = int(patient_info["Patient ID"]) if not pd.isna(patient_info["Patient ID"]) else None
-            emergency_patient_id = int(patient_info["Emergency Patient ID"]) if not pd.isna(patient_info["Emergency Patient ID"]) else None
+            emergency_patient_id = int(patient_info["Emergency Patient ID"]) if not pd.isna(
+                patient_info["Emergency Patient ID"]) else None
             room_number = str(patient_info["Room Number"])
             room_type = str(patient_info["Room Type"])
             is_icu = bool(patient_info["ICU Room"])
@@ -1499,7 +1504,8 @@ def discharge_patient():
                             (patient_id, emergency_patient_id, patient_name, room_number, room_type, discharge_date, discharge_time, discharge_reason, is_icu)
                             VALUES (NULL, %s, %s, %s, %s, CURDATE(), CURTIME(), %s, %s)
                             """,
-                            (emergency_patient_id, patient_info["Patient Name"], room_number, room_type, discharge_reason, is_icu)
+                            (emergency_patient_id, patient_info["Patient Name"], room_number, room_type,
+                             discharge_reason, is_icu)
                         )
                     else:
                         # Use patient_id for general patients and set emergency_patient_id to NULL
@@ -1519,7 +1525,10 @@ def discharge_patient():
                     )
 
                     con.commit()
-                    st.success(f"✅ {patient_info['Patient Name']} discharged successfully! Room {room_number} is now available.")
+                    st.success(
+                        f"✅ {patient_info['Patient Name']} discharged successfully! Room {room_number} is now available.")
+                    st.balloons()
+                    time.sleep(2)
                     st.rerun()
                 except Exception as e:
                     con.rollback()
@@ -1531,6 +1540,7 @@ def discharge_patient():
             st.error("Selected patient not found in the records.")
     else:
         st.warning("Please select a patient to discharge.")
+
 
 def view_discharged_patients():
     st.markdown('<div class="header-lightblue"><h3>\U0001F4DC Discharged Patients Records</h3></div>',
@@ -1564,9 +1574,11 @@ def view_discharged_patients():
         discharged_data["ICU Room"] = discharged_data["ICU Room"].apply(lambda x: "Yes" if x else "No")
         st.dataframe(discharged_data)
 
+
 def allocate_room():
     try:
-        st.markdown('<div class="header-lightblue"><h3>\U0001F3E2 Allocate Room to Patient</h3></div>', unsafe_allow_html=True)
+        st.markdown('<div class="header-lightblue"><h3>\U0001F3E2 Allocate Room to Patient</h3></div>',
+                    unsafe_allow_html=True)
 
         # Fetch patients without allocated rooms
         patients_without_rooms = fetch_data(
@@ -1616,6 +1628,7 @@ def allocate_room():
     except Exception as e:
         st.error(f"Error allocating room: {e}")
 
+
 # New function to handle discharging patients
 def discharge_patient_ui():
     st.subheader("🚪 Discharge Patient")
@@ -1650,69 +1663,113 @@ def discharge_patient_ui():
     else:
         st.info("No patients with allocated rooms found.")
 
-#---------------------------Emergency Unit-----------------------
+
+# ---------------------------Emergency Unit-----------------------
 def add_emergency_patient():
     st.markdown('<div class="header-lightblue"><h3>🚨 Add Emergency Patient</h3></div>', unsafe_allow_html=True)
     check_user_role(["Admin", "Doctor", "Receptionist", "Nurse", "Patient"])
 
-    # Patient Details
-    name = st.text_input("Patient Name*")
-    contact_no = st.text_input("Contact Number*")
-    address = st.text_area("Address*")
-    blood_type = st.selectbox("Blood Type*", ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"])
+    # Create columns for better layout
+    col1, col2 = st.columns(2)
 
-    # Fetch available ICU rooms
-    available_icu_rooms = fetch_data(
-        "SELECT id, room_number FROM rooms WHERE is_icu = TRUE AND availability = 'Not Booked'",
-        "rooms",
-        ["ID", "Room Number"]
-    )
+    with col1:
+        # Patient Details
+        name = st.text_input("Patient Name*")
+        contact_no = st.text_input("Contact Number*")
+        address = st.text_area("Address*")
+        blood_type = st.selectbox("Blood Type*", ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"])
 
-    room_options = {
-        f"{row['Room Number']}": int(row['ID'])  # Convert to native Python int
-        for _, row in available_icu_rooms.iterrows()
-    }
-    selected_room = st.selectbox("Assign ICU Room*", ["NA"] + list(room_options.keys()))
+        # Added age and date of birth fields
+        age = st.number_input("Age", min_value=0, max_value=120)
 
-    # Doctor Assignment
-    available_doctors = fetch_data(
-        "SELECT id, staff_name FROM staff WHERE role = 'Doctor'",
-        "staff",
-        ["ID", "Doctor Name"]
-    )
-    doctor_options = {
-        f"{row['Doctor Name']}": int(row['ID'])  # Convert to native Python int
-        for _, row in available_doctors.iterrows()
-    }
-    selected_doctor = st.selectbox("Assign Doctor*", list(doctor_options.keys()))
-    doctor_id = doctor_options.get(selected_doctor)
+        # Calendar widget for Date of Birth input
+        dob = st.date_input(
+            "Date of Birth* (YYYY-MM-DD)",
+            help="Enter date in YYYY-MM-DD format",
+            min_value=datetime(1900, 1, 1).date(),
+            max_value=datetime.today().date()
+        )
 
-    if st.button("Add Emergency Patient"):
-        required_fields = [name, contact_no, address, blood_type, selected_doctor]
+    with col2:
+        # Fees input with clear label and currency symbol
+        fees = st.number_input("Fees (₹)*", min_value=0.0, format="%.2f", step=100.0)
+
+        # Fetch available ICU rooms
+        available_icu_rooms = fetch_data(
+            "SELECT id, room_number FROM rooms WHERE is_icu = TRUE AND availability = 'Not Booked'",
+            "rooms",
+            ["ID", "Room Number"]
+        )
+
+        room_options = {
+            f"{row['Room Number']}": int(row['ID'])
+            for _, row in available_icu_rooms.iterrows()
+        }
+        selected_room = st.selectbox("Assign ICU Room", ["NA"] + list(room_options.keys()))
+
+        # Doctor Assignment with department information
+        doctor_data = fetch_data(
+            """
+            SELECT s.id, s.staff_name, d.department 
+            FROM staff s
+            JOIN doctor d ON s.id = d.staff_id
+            WHERE s.role = 'Doctor'
+            """,
+            "staff",
+            ["ID", "Doctor Name", "Department"]
+        )
+
+        if not doctor_data.empty:
+            doctor_options = {
+                f"{row['Doctor Name']} ({row['Department']})": row['ID']
+                for _, row in doctor_data.iterrows()
+            }
+
+            # Display doctor selection with department info
+            selected_doctor = st.selectbox("Assign Doctor*", list(doctor_options.keys()))
+            doctor_id = doctor_options.get(selected_doctor)
+
+            # Extract department from selection
+            selected_dept = doctor_data[doctor_data['ID'] == doctor_id]['Department'].iloc[0]
+            st.text_input("Doctor's Department", value=selected_dept, disabled=True)
+        else:
+            st.warning("No doctors available. Please add doctors first.")
+            return
+
+    if st.button("➕ Add Emergency Patient", type="primary"):
+        required_fields = [name, contact_no, address, blood_type, selected_doctor, fees]
         if not all(required_fields):
             st.error("Please fill all required fields (*)")
-        elif selected_room == "NA":
-            st.error("ICU Room selection is mandatory")
+        elif selected_room == "NA" and not selected_doctor:
+            st.error("Doctor selection is mandatory when ICU room is not assigned")
         else:
-            # Get room_id from options
-            room_id = room_options.get(selected_room)
+            # If "NA" is selected, set room_id to NULL
+            room_id = None if selected_room == "NA" else room_options.get(selected_room)
 
-            # Insert emergency patient
-            insert_data(
-                """
-                INSERT INTO emergency_patients (name, contact_no, address, blood_type, room_id, doctor_id)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                """,
-                (name, contact_no, address, blood_type, room_id, doctor_id)
-            )
+            try:
+                # Insert emergency patient with additional fields
+                insert_data(
+                    """
+                    INSERT INTO emergency_patients 
+                    (name, contact_no, address, blood_type, room_id, doctor_id, fees, age, dob)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (name, contact_no, address, blood_type, room_id, doctor_id, fees, age, dob)
+                )
 
-            # Update ICU room status
-            insert_data(
-                "UPDATE rooms SET availability = 'Booked' WHERE id = %s",
-                (room_id,)
-            )
+                # If a room is assigned, update ICU room status
+                if room_id:
+                    insert_data(
+                        "UPDATE rooms SET availability = 'Booked' WHERE id = %s",
+                        (room_id,)
+                    )
 
-            st.success("Emergency patient added successfully!")
+                st.success("Emergency patient added successfully!")
+
+            except Exception as e:
+                st.error(f"Error adding emergency patient: {str(e)}")
+                logging.error(f"Error adding emergency patient: {str(e)}")
+
 
 def view_emergency_patients():
     st.markdown('<div class="header-lightblue"><h3>🚨 Emergency Patients Records</h3></div>', unsafe_allow_html=True)
@@ -1731,33 +1788,90 @@ def view_emergency_patients():
 
     st.write(f"**ICU Rooms:** {available_icu} Available / {total_icu} Total")
 
-    # Fetch emergency patient data with room numbers
+    # Fetch ALL emergency patient data (including those without room allocation)
     query = """
         SELECT 
-            ep.id AS 'ID',
-            ep.name AS 'Patient Name',
-            ep.contact_no AS 'Contact No',
-            ep.address AS 'Address',
-            ep.blood_type AS 'Blood Type',
-            r.room_number AS 'Room Number',
-            s.staff_name AS 'Assigned Doctor',
-            ep.admission_date AS 'Admission Date'
+            ep.id,
+            ep.name,
+            ep.contact_no,
+            ep.address,
+            ep.blood_type,
+            ep.age,
+            DATE(ep.dob) AS dob,
+            COALESCE(r.room_number, 'Not Assigned') AS room_number,
+            s.staff_name,
+            d.department,
+            DATE(ep.admission_date) AS admission_date,
+            ep.fees,
+            CASE WHEN r.id IS NULL THEN 'No Room' ELSE r.availability END AS room_status
         FROM 
             emergency_patients ep
         LEFT JOIN 
             rooms r ON ep.room_id = r.id
         LEFT JOIN 
             staff s ON ep.doctor_id = s.id
+        LEFT JOIN
+            doctor d ON s.id = d.staff_id
     """
-    emergency_data = fetch_data(query, "emergency_patients")
+
+    # Define the column names that match the SQL query results
+    column_names = [
+        "Patient ID",
+        "Patient Name",
+        "Contact Number",
+        "Address",
+        "Blood Type",
+        "Age",
+        "Date of Birth",
+        "ICU Room",
+        "Assigned Doctor",
+        "Department",
+        "Admission Date",
+        "Fees (₹)",
+        "Room Status"
+    ]
+
+    emergency_data = fetch_data(query, "emergency_patients", column_names)
 
     if emergency_data.empty:
         st.info("No emergency patient records found.")
     else:
+        # Add search and filter functionality
+        st.markdown("### 🔍 Search and Filter Emergency Patients")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            search_query = st.text_input("Search by Patient Name or ID")
+
+        with col2:
+            room_filter = st.selectbox("Filter by Room Status", ["All", "Assigned", "Not Assigned"])
+
+        # Apply filters
+        if search_query:
+            emergency_data = emergency_data[
+                emergency_data["Patient Name"].str.contains(search_query, case=False) |
+                emergency_data["Patient ID"].astype(str).str.contains(search_query)
+                ]
+
+        if room_filter == "Assigned":
+            emergency_data = emergency_data[emergency_data["ICU Room"] != "Not Assigned"]
+        elif room_filter == "Not Assigned":
+            emergency_data = emergency_data[emergency_data["ICU Room"] == "Not Assigned"]
+
         st.dataframe(emergency_data)
 
+        # Add a download button
+        if st.button("📥 Download Emergency Patient Records as CSV"):
+            csv = emergency_data.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Download CSV",
+                data=csv,
+                file_name="emergency_patient_records.csv",
+                mime="text/csv"
+            )
+
+
 def allocate_icu_room_to_emergency_patient(patient_id):
-    """Allocate an ICU room to an emergency patient from Emergency Unit section."""
     con = connection()
     cur = con.cursor()
 
@@ -1775,17 +1889,20 @@ def allocate_icu_room_to_emergency_patient(patient_id):
         return "No ICU rooms available!"
 
 
-# New function to handle discharging emergency patients
 def discharge_emergency_patient_ui():
     st.subheader("🚪 Discharge Emergency Patient")
 
-    # Fetch all emergency patients with allocated ICU rooms
+    # Fetch only emergency patients who are currently admitted (not discharged)
     emergency_patients_with_rooms = fetch_data(
         """
         SELECT ep.id AS 'Patient ID', ep.name AS 'Patient Name', r.room_number AS 'Room Number'
         FROM emergency_patients ep
         JOIN rooms r ON ep.room_id = r.id
-        WHERE r.is_icu = TRUE AND r.availability = 'Booked'  <--- ADDED AVAILABILITY CHECK
+        WHERE r.is_icu = TRUE 
+          AND r.availability = 'Booked'
+          AND ep.room_id IS NOT NULL
+          AND (ep.discharge_reason IS NULL OR ep.discharge_reason = '')
+          AND ep.discharge_date IS NULL
         """,
         "emergency_patients",
         ["Patient ID", "Patient Name", "Room Number"]
@@ -1807,7 +1924,8 @@ def discharge_emergency_patient_ui():
             result = discharge_patient(patient_id)
             st.success(result)
     else:
-        st.info("No emergency patients with allocated ICU rooms found.")
+        st.info("No emergency patients available for discharge (all current patients have already been discharged).")
+
 
 def emergency_summary_metrics():
     st.markdown('<div class="header-lightblue"><h3>📊 Emergency Summary Metrics</h3></div>', unsafe_allow_html=True)
@@ -1952,6 +2070,7 @@ def room_info_section():
     with room_tabs[3]:
         view_discharged_patients()
 
+
 def view_rooms():
     st.markdown('<div class="header-lightblue"><h3>\U0001F3E2 Room Availability</h3></div>', unsafe_allow_html=True)
     check_user_role(["Admin", "Doctor", "Receptionist", "Nurse", "Patient"])
@@ -2000,8 +2119,17 @@ def add_bill():
     try:
         st.markdown('<div class="header-lightblue"><h3>💸 Add New Bill</h3></div>', unsafe_allow_html=True)
 
-        # Fetch patient data
-        patient_data = fetch_data("SELECT id, name FROM patients", "patients", ["id", "name"])
+        # Radio button to select patient type
+        patient_type = st.radio("Patient Type", ["Regular Patient", "Emergency Patient"])
+
+        if patient_type == "Regular Patient":
+            # Fetch regular patient data
+            patient_data = fetch_data("SELECT id, name FROM patients", "patients", ["id", "name"])
+            patient_table = "patients"
+        else:
+            # Fetch emergency patient data
+            patient_data = fetch_data("SELECT id, name FROM emergency_patients", "emergency_patients", ["id", "name"])
+            patient_table = "emergency_patients"
 
         if not patient_data.empty:
             # Select patient
@@ -2011,10 +2139,18 @@ def add_bill():
             # Fetch patient details
             con = connection()
             cur = con.cursor()
-            cur.execute("SELECT contact_no, fees FROM patients WHERE id = %s", (patient_id,))
+            if patient_type == "Regular Patient":
+                cur.execute("SELECT contact_no, fees FROM patients WHERE id = %s", (patient_id,))
+                patient_type_db = "regular"
+            else:
+                cur.execute("SELECT contact_no, fees FROM emergency_patients WHERE id = %s", (patient_id,))
+                patient_type_db = "emergency"
+
             patient_info = cur.fetchone()
             contact_no = patient_info[0]
             doctor_fees = patient_info[1]
+            cur.close()
+            con.close()
 
             # Input fields for bill details
             room_charges = st.number_input("Room Charges", min_value=0.0, format="%.2f")
@@ -2022,7 +2158,7 @@ def add_bill():
             medicine_charges = st.number_input("Medicine Charges", min_value=0.0, format="%.2f")
 
             # Room type dropdown with allowed values
-            room_type = st.selectbox("Room Type", ["NA","Single", "Double", "ICU", "Deluxe"])
+            room_type = st.selectbox("Room Type", ["NA", "Single", "Double", "ICU", "Deluxe"])
 
             # Calculate total amount
             total_amount = float(room_charges) + float(pathology_fees) + float(medicine_charges) + float(doctor_fees)
@@ -2038,34 +2174,39 @@ def add_bill():
                     # Insert bill details into the database
                     insert_data("""
                         INSERT INTO bill_details 
-                        (bill_date, patient_id, name, contact_no, room_charges, pathology_fees, medicine_charges, doctor_fees, room_type, total_amount)
-                        VALUES (CURDATE(), %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        (bill_date, patient_type, regular_patient_id, emergency_patient_id, 
+                         name, contact_no, room_charges, pathology_fees, 
+                         medicine_charges, doctor_fees, room_type, total_amount)
+                        VALUES (CURDATE(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """, (
-                    patient_id, patient_name, contact_no, room_charges, pathology_fees, medicine_charges, doctor_fees,
-                    room_type, total_amount))
+                        patient_type_db,
+                        patient_id if patient_type == "Regular Patient" else None,
+                        patient_id if patient_type == "Emergency Patient" else None,
+                        patient_name, contact_no, room_charges, pathology_fees,
+                        medicine_charges, doctor_fees, room_type, total_amount
+                    ))
 
                     st.success("Bill added successfully!")
-                    logging.info(f"Bill added for patient {patient_name}.")
                 except Exception as e:
                     st.error(f"Error adding bill: {e}")
-                    logging.error(f"Error adding bill: {e}")
         else:
-            st.warning("No patient records found. Please add a patient first.")
-            logging.warning("No patient records found for billing.")
+            st.warning(f"No {patient_type.lower()} records found. Please add a {patient_type.lower()} first.")
     except Exception as e:
         st.error(f"Error in billing section: {e}")
-        logging.error(f"Error in billing section: {e}")
+
 
 def view_bills():
     st.markdown('<div class="header-lightblue"><h3>\U0001F4B8 Billing Information</h3></div>', unsafe_allow_html=True)
 
+    # Radio button to filter by patient type
+    filter_type = st.radio("Filter by Patient Type", ["All", "Regular Patients", "Emergency Patients"])
 
-    # Fetch billing data along with patient details
-    query = """
+    # Base query for regular patients
+    regular_query = """
         SELECT 
             b.bill_no AS 'Bill No', 
             b.bill_date AS 'Bill Date', 
-            b.patient_id AS 'Patient ID', 
+            b.regular_patient_id AS 'Patient ID', 
             p.name AS 'Patient Name', 
             p.age AS 'Age', 
             p.gender AS 'Gender', 
@@ -2076,29 +2217,87 @@ def view_bills():
             p.department AS 'Department', 
             p.diseases AS 'Disease', 
             p.fees AS 'Fees',
-            p.medicine AS 'Medicine',
-            p.quantity AS 'Quantity',
             b.room_charges AS 'Room Charges', 
             b.pathology_fees AS 'Pathology Fees', 
             b.medicine_charges AS 'Medicine Charges', 
             b.doctor_fees AS 'Doctor Fees', 
             b.total_amount AS 'Total Amount', 
-            b.room_type AS 'Room Type'
+            b.room_type AS 'Room Type',
+            'Regular' AS 'Patient Type'
         FROM bill_details b
-        JOIN patients p ON b.patient_id = p.id
+        JOIN patients p ON b.regular_patient_id = p.id
+        WHERE b.patient_type = 'regular'
     """
+
+    # Query for emergency patients
+    emergency_query = """
+        SELECT 
+            b.bill_no AS 'Bill No', 
+            b.bill_date AS 'Bill Date', 
+            b.emergency_patient_id AS 'Patient ID', 
+            ep.name AS 'Patient Name', 
+            NULL AS 'Age', 
+            NULL AS 'Gender', 
+            ep.address AS 'Address', 
+            ep.contact_no AS 'Contact No', 
+            NULL AS 'Date of Birth', 
+            s.staff_name AS 'Consultant', 
+            'Emergency' AS 'Department', 
+            'Emergency Care' AS 'Disease', 
+            ep.fees AS 'Fees',
+            b.room_charges AS 'Room Charges', 
+            b.pathology_fees AS 'Pathology Fees', 
+            b.medicine_charges AS 'Medicine Charges', 
+            b.doctor_fees AS 'Doctor Fees', 
+            b.total_amount AS 'Total Amount', 
+            b.room_type AS 'Room Type',
+            'Emergency' AS 'Patient Type'
+        FROM bill_details b
+        JOIN emergency_patients ep ON b.emergency_patient_id = ep.id
+        LEFT JOIN staff s ON ep.doctor_id = s.id
+        WHERE b.patient_type = 'emergency'
+    """
+
+    # Determine which query to use based on selection
+    if filter_type == "All":
+        query = f"{regular_query} UNION ALL {emergency_query}"
+    elif filter_type == "Regular Patients":
+        query = regular_query
+    else:
+        query = emergency_query
+
     columns = [
         "Bill No", "Bill Date", "Patient ID", "Patient Name", "Age", "Gender",
         "Address", "Contact No", "Date of Birth", "Consultant", "Department",
-        "Disease", "Fees", "Medicine", "Quantity", "Room Charges", "Pathology Fees",
-        "Medicine Charges", "Doctor Fees", "Total Amount", "Room Type"
+        "Disease", "Fees", "Room Charges", "Pathology Fees", "Medicine Charges",
+        "Doctor Fees", "Total Amount", "Room Type", "Patient Type"
     ]
+
     df = fetch_data(query, "bill_details", columns)
 
     if df.empty:
         st.info("No billing records found.")
     else:
+        # Add search functionality
+        search_query = st.text_input("Search by Patient Name or ID")
+        if search_query:
+            df = df[
+                df["Patient Name"].str.contains(search_query, case=False) |
+                df["Patient ID"].astype(str).str.contains(search_query)
+                ]
+
         st.dataframe(df)
+
+        # Add download button
+        if st.button("📥 Download Billing Records as CSV"):
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Download CSV",
+                data=csv,
+                file_name="billing_records.csv",
+                mime="text/csv"
+            )
+
 
 # ------------------ Dashboard Section ------------------
 def show_dashboard():
@@ -2132,7 +2331,8 @@ def show_dashboard():
 
     # ICU Occupancy Alert
     total_icu_rooms = fetch_data("SELECT COUNT(*) FROM rooms WHERE is_icu = TRUE", "rooms").iloc[0, 0]
-    occupied_icu_rooms = fetch_data("SELECT COUNT(*) FROM rooms WHERE is_icu = TRUE AND availability = 'Booked'", "rooms").iloc[0, 0]
+    occupied_icu_rooms = \
+        fetch_data("SELECT COUNT(*) FROM rooms WHERE is_icu = TRUE AND availability = 'Booked'", "rooms").iloc[0, 0]
     icu_occupancy_rate = (occupied_icu_rooms / total_icu_rooms) * 100 if total_icu_rooms else 0
 
     # Display ICU Occupancy Alert Only if Occupancy > 80%
@@ -2156,8 +2356,7 @@ def show_dashboard():
     # Patient Demographics Card
     patient_demographics_card()
 
-    # Revenue Trend Sparkline
-    revenue_trend_sparkline()
+    revenue_dashboard()
 
     # Doctor-Patient Ratio Donut
     doctor_patient_ratio_donut()
@@ -2210,9 +2409,7 @@ def show_dashboard():
     room_allocation_chart()
 
 
-
 def patient_demographics_card():
-    """Enhanced patient demographics card with more detailed information."""
     try:
         # Fetch data
         patient_count_data = fetch_data("SELECT COUNT(*) FROM patients", "patients")
@@ -2244,7 +2441,6 @@ def patient_demographics_card():
 
 
 def icu_room_details():
-    """Display ICU room details with availability and allocation in proper numerical order."""
     try:
         # Fetch ICU room data
         icu_data = fetch_data(
@@ -2322,6 +2518,7 @@ def icu_room_details():
         st.error(f"Error fetching ICU room details: {e}")
         logging.error(f"Error in icu_room_details: {e}")
 
+
 def general_room_details():
     """Display general room details with availability and allocation."""
     try:
@@ -2363,7 +2560,7 @@ def general_room_details():
         # Add Booked rooms trace
         fig.add_trace(go.Bar(
             x=booked_rooms['Room Number'],
-            y=[1]*len(booked_rooms),
+            y=[1] * len(booked_rooms),
             name='Booked',
             marker_color='#FF6347',
             text='Booked',
@@ -2373,7 +2570,7 @@ def general_room_details():
         # Add Available rooms trace
         fig.add_trace(go.Bar(
             x=available_rooms['Room Number'],
-            y=[1]*len(available_rooms),
+            y=[1] * len(available_rooms),
             name='Available',
             marker_color='#87CEEB',
             text='Available',
@@ -2396,53 +2593,453 @@ def general_room_details():
         st.error(f"Error fetching general room details: {e}")
         logging.error(f"Error in general_room_details: {e}")
 
-def revenue_trend_sparkline():
-    """Enhanced revenue trend visualization with rainbow colors, annotations, and better formatting."""
-    revenue_data = fetch_data(
-        "SELECT DATE_FORMAT(bill_date, '%Y-%m') AS month, SUM(total_amount) AS total_amount FROM bill_details GROUP BY month",
-        "bill_details",
-        columns=["month", "total_amount"]
-    )
 
-    # Check if revenue_data is empty
-    if revenue_data.empty:
-        st.warning("No revenue data available to display.")
-        return
+def revenue_dashboard():
+    # Create navigation tabs with improved styling
+    st.markdown("""
+    <style>
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 10px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            padding: 8px 16px;
+            border-radius: 4px 4px 0 0;
+        }
+        .stTabs [aria-selected="true"] {
+            background-color: #6a0572;
+            color: white;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
-    # Define a custom rainbow color palette
-    rainbow_colors = [
-        "#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#9400D3"
-    ]
+    tab1, tab2, tab3 = st.tabs(["Today's Revenue", "This Week's Revenue", "Monthly Revenue"])
 
-    # Create the line chart with rainbow colors
-    fig = px.line(revenue_data, x='month', y='total_amount',
-                  title="💰 Monthly Revenue Trend",
-                  line_shape="spline",
-                  color_discrete_sequence=rainbow_colors,  # Use rainbow colors
-                  labels={"month": "Month", "total_amount": "Revenue (₹)"})
+    # Fetch data for all time periods at once
+    today = datetime.now().strftime('%Y-%m-%d')
+    week_start = (datetime.now() - timedelta(days=datetime.now().weekday())).strftime('%Y-%m-%d')
+    month_start = datetime.now().replace(day=1).strftime('%Y-%m-%d')
 
-    # Update layout for better readability
-    fig.update_layout(
-        plot_bgcolor="rgba(0,0,0,0)",  # Transparent plot background
-        paper_bgcolor="rgba(0,0,0,0)",  # Transparent outer background
-        xaxis_title="Month",
-        yaxis_title="Revenue (₹)",
-        hovermode="x unified"  # Unified hover information
-    )
+    # Today's Revenue Tab - Web Graph + Bubble Chart
+    with tab1:
+        st.header("💰 Today's Revenue Dashboard", divider='rainbow')
 
-    # Add annotation for the last data point
-    last_month = revenue_data['month'].iloc[-1]
-    last_revenue = revenue_data['total_amount'].iloc[-1]
-    fig.add_annotation(
-        x=last_month,
-        y=last_revenue,
-        text=f"₹ {last_revenue:.2f}",
-        showarrow=True,
-        arrowhead=1
-    )
+        # Fetch hourly data for today
+        today_data = fetch_data(
+            f"SELECT HOUR(bill_date) AS hour, SUM(total_amount) AS amount "
+            f"FROM bill_details WHERE DATE(bill_date) = '{today}' "
+            f"GROUP BY hour ORDER BY hour",
+            "bill_details",
+            columns=["hour", "amount"]
+        )
 
-    # Display the chart
-    st.plotly_chart(fig)
+        # Display KPI - convert to float right after summing
+        today_total = float(today_data['amount'].sum()) if not today_data.empty else 0.0
+
+        # Create a 3-column layout for KPIs
+        kpi1, kpi2, kpi3 = st.columns(3)
+        with kpi1:
+            st.metric("Total Revenue Today", f"₹{today_total:,.2f}")
+        with kpi2:
+            current_hour = datetime.now().hour
+            current_hour_rev = float(today_data.loc[today_data['hour'] == current_hour, 'amount'].iloc[
+                                         0]) if not today_data.empty and current_hour in today_data[
+                'hour'].values else 0.0
+            st.metric(f"Hour {current_hour} Revenue", f"₹{current_hour_rev:,.2f}")
+        with kpi3:
+            avg_hourly = float(today_data['amount'].mean()) if not today_data.empty else 0.0
+            st.metric("Avg Hourly Revenue", f"₹{avg_hourly:,.2f}")
+
+        if not today_data.empty:
+            # Convert and prepare data
+            today_data['amount_float'] = today_data['amount'].astype(float)
+            today_data['hour_12'] = today_data['hour'].apply(
+                lambda x: f"{x % 12 if x % 12 != 0 else 12}{'AM' if x < 12 else 'PM'}")
+
+            # Create a 2-column layout for main visualizations
+            col1, col2 = st.columns([1, 1])
+
+            with col1:
+                # Web Graph (Radar Chart) for today's revenue distribution
+                fig_web = go.Figure()
+
+                fig_web.add_trace(go.Scatterpolar(
+                    r=today_data['amount_float'],
+                    theta=today_data['hour_12'],
+                    fill='toself',
+                    fillcolor='rgba(106,5,114,0.3)',
+                    line=dict(color='#6a0572', width=3),
+                    marker=dict(
+                        size=10,
+                        color=today_data['amount_float'],
+                        colorscale='Rainbow',
+                        showscale=True,
+                        line=dict(color='black', width=1)
+                    ),
+                    name='Hourly Revenue',
+                    hovertemplate='<b>%{theta}</b><br>Revenue: ₹%{r:,.2f}<extra></extra>'
+                ))
+
+                fig_web.update_layout(
+                    polar=dict(
+                        radialaxis=dict(
+                            visible=True,
+                            range=[0, today_data['amount_float'].max() * 1.2],
+                            tickfont=dict(size=10)
+                        ),
+                        angularaxis=dict(
+                            direction='clockwise',
+                            rotation=90
+                        )
+                    ),
+                    title='<b>Revenue Web</b> - Hourly Distribution',
+                    height=400,
+                    margin=dict(l=50, r=50, t=50, b=50),
+                    paper_bgcolor='rgba(245,245,245,1)'
+                )
+                st.plotly_chart(fig_web, use_container_width=True)
+
+            with col2:
+                # Bubble Chart with rainbow colors
+                fig_bubble = go.Figure()
+
+                fig_bubble.add_trace(go.Scatter(
+                    x=today_data['hour'],
+                    y=today_data['amount_float'],
+                    mode='markers',
+                    marker=dict(
+                        size=today_data['amount_float'] * 0.05 + 20,  # Scale bubble sizes
+                        color=today_data['amount_float'],
+                        colorscale='Rainbow',
+                        showscale=True,
+                        opacity=0.8,
+                        line=dict(width=1, color='DarkSlateGrey')
+                    ),
+                    text=today_data['hour_12'],
+                    hovertemplate='<b>%{text}</b><br>Revenue: ₹%{y:,.2f}<extra></extra>',
+                    name='Revenue Bubbles'
+                ))
+
+                fig_bubble.update_layout(
+                    title='<b>Revenue Bubbles</b> - Hourly Performance',
+                    xaxis=dict(
+                        title='Hour of Day',
+                        tickvals=today_data['hour'],
+                        ticktext=today_data['hour_12']
+                    ),
+                    yaxis=dict(title='Revenue (₹)'),
+                    height=400,
+                    plot_bgcolor='rgba(245,245,245,1)',
+                    paper_bgcolor='rgba(245,245,245,1)'
+                )
+                st.plotly_chart(fig_bubble, use_container_width=True)
+
+            # Additional visualizations in full width
+            st.subheader("Hourly Revenue Trends", divider='gray')
+
+            # Create a 2-column layout for trend charts
+            trend_col1, trend_col2 = st.columns([1, 1])
+
+            with trend_col1:
+                # Line chart with area fill
+                fig_line = go.Figure()
+                fig_line.add_trace(go.Scatter(
+                    x=today_data['hour'],
+                    y=today_data['amount_float'],
+                    fill='tozeroy',
+                    mode='lines+markers',
+                    line=dict(color='#6A0572', width=3),
+                    marker=dict(size=10, color='#AB83A1'),
+                    name='Revenue Flow',
+                    hovertemplate='<b>Hour %{x}</b><br>Revenue: ₹%{y:,.2f}<extra></extra>'
+                ))
+                fig_line.update_layout(
+                    title='Hourly Revenue Trend',
+                    xaxis_title='Hour of Day',
+                    yaxis_title='Revenue (₹)',
+                    height=350,
+                    plot_bgcolor='rgba(245,245,245,1)'
+                )
+                st.plotly_chart(fig_line, use_container_width=True)
+
+            with trend_col2:
+                # Bar chart with gradient colors
+                fig_bar = go.Figure()
+                fig_bar.add_trace(go.Bar(
+                    x=today_data['hour_12'],
+                    y=today_data['amount_float'],
+                    marker=dict(
+                        color=today_data['amount_float'],
+                        colorscale='Rainbow',
+                        line=dict(color='black', width=1)
+                    ),
+                    hovertemplate='<b>%{x}</b><br>Revenue: ₹%{y:,.2f}<extra></extra>'
+                ))
+                fig_bar.update_layout(
+                    title='Hourly Revenue Bars',
+                    xaxis_title='Time',
+                    yaxis_title='Revenue (₹)',
+                    height=350,
+                    plot_bgcolor='rgba(245,245,245,1)'
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
+        else:
+            st.warning("No revenue data available for today.")
+
+    # Weekly Revenue Tab - Sunburst + Stacked Area Chart (unchanged but better formatted)
+    with tab2:
+        st.header("📈 Weekly Revenue Dashboard", divider='rainbow')
+
+        # Fetch daily data for current week
+        week_data = fetch_data(
+            f"SELECT DATE(bill_date) AS day, SUM(total_amount) AS amount "
+            f"FROM bill_details WHERE DATE(bill_date) >= '{week_start}' "
+            f"GROUP BY day ORDER BY day",
+            "bill_details",
+            columns=["day", "amount"]
+        )
+
+        # Display KPI
+        week_total = week_data['amount'].sum() if not week_data.empty else 0
+
+        # Create a 3-column layout for KPIs
+        wk_col1, wk_col2, wk_col3 = st.columns(3)
+        with wk_col1:
+            st.metric("Total Revenue This Week", f"₹{week_total:,.2f}")
+        with wk_col2:
+            avg_daily = float(week_data['amount'].mean()) if not week_data.empty else 0.0
+            st.metric("Avg Daily Revenue", f"₹{avg_daily:,.2f}")
+        with wk_col3:
+            best_day = week_data.loc[week_data['amount'].idxmax()] if not week_data.empty else None
+            if best_day is not None:
+                best_day_name = pd.to_datetime(best_day['day']).strftime('%A')
+                st.metric("Best Day", f"{best_day_name} - ₹{best_day['amount']:,.2f}")
+
+        if not week_data.empty:
+            # Convert day column to datetime if it's not already
+            week_data['day'] = pd.to_datetime(week_data['day'])
+            week_data['day_name'] = week_data['day'].dt.day_name()
+            week_data['week'] = 'Current Week'
+
+            # Create a 2-column layout for main charts
+            wk_chart1, wk_chart2 = st.columns([1, 1])
+
+            with wk_chart1:
+                # Sunburst chart (unchanged)
+                fig_sunburst = go.Figure(go.Sunburst(
+                    labels=week_data['day_name'] + "<br>₹" + week_data['amount'].round(2).astype(str),
+                    parents=week_data['week'],
+                    values=week_data['amount'],
+                    marker=dict(
+                        colors=px.colors.qualitative.Pastel,
+                        line=dict(width=2, color='white')
+                    ),
+                    branchvalues="total",
+                    hoverinfo="label+value",
+                    textinfo="label"
+                ))
+                fig_sunburst.update_layout(
+                    title="Revenue Distribution by Weekday",
+                    margin=dict(t=30, l=0, r=0, b=0),
+                    height=400
+                )
+                st.plotly_chart(fig_sunburst, use_container_width=True)
+
+            with wk_chart2:
+                # Stacked area chart for weekly trend (unchanged)
+                fig_area = go.Figure()
+                fig_area.add_trace(go.Scatter(
+                    x=week_data['day'],
+                    y=week_data['amount'],
+                    stackgroup='one',
+                    mode='lines',
+                    line=dict(width=0.5, color='#FF9AA2'),
+                    fillcolor='rgba(255,154,162,0.6)',
+                    name='Revenue'
+                ))
+                fig_area.add_trace(go.Scatter(
+                    x=week_data['day'],
+                    y=week_data['amount'].cumsum(),
+                    mode='lines+markers',
+                    line=dict(width=3, color='#FF0000'),
+                    marker=dict(size=10, color='#FF0000'),
+                    name='Cumulative Revenue'
+                ))
+                fig_area.update_layout(
+                    title='Weekly Revenue Breakdown',
+                    xaxis_title='Day',
+                    yaxis_title='Revenue (₹)',
+                    hovermode='x unified',
+                    height=400
+                )
+                st.plotly_chart(fig_area, use_container_width=True)
+        else:
+            st.warning("No revenue data available for this week.")
+
+    # Monthly Revenue Tab - Treemap + Waterfall Chart (unchanged but better formatted)
+    with tab3:
+        st.header("📊 Monthly Revenue Dashboard", divider='rainbow')
+
+        # Fetch monthly data
+        monthly_data = fetch_data(
+            "SELECT DATE_FORMAT(bill_date, '%Y-%m') AS month, SUM(total_amount) AS amount "
+            "FROM bill_details GROUP BY month ORDER BY month",
+            "bill_details",
+            columns=["month", "amount"]
+        )
+
+        # Display KPI with animated counter
+        current_month = datetime.now().strftime('%Y-%m')
+        month_total = monthly_data.loc[monthly_data['month'] == current_month, 'amount'].iloc[
+            0] if not monthly_data.empty else 0
+
+        # Create a 3-column layout for KPIs
+        m_col1, m_col2, m_col3 = st.columns(3)
+        with m_col1:
+            st.metric(f"Current Month Revenue", f"₹{month_total:,.2f}",
+                      help="Revenue for current month")
+        with m_col2:
+            avg_revenue = float(monthly_data['amount'].mean()) if not monthly_data.empty else 0.0
+            st.metric("Monthly Average", f"₹{avg_revenue:,.2f}",
+                      delta=f"₹{float(month_total) - avg_revenue:,.2f} vs average",
+                      help="Comparison with historical average")
+        with m_col3:
+            best_month = monthly_data.loc[monthly_data['amount'].idxmax()] if not monthly_data.empty else None
+            if best_month is not None:
+                st.metric("Best Month", f"{best_month['month']} - ₹{best_month['amount']:,.2f}",
+                          help="Highest revenue month in history")
+
+        if not monthly_data.empty:
+            # Create a 2-column layout for main charts
+            m_chart1, m_chart2 = st.columns([2, 1])
+
+            with m_chart1:
+                # Interactive Calendar Heatmap (unchanged)
+                monthly_data['date'] = pd.to_datetime(monthly_data['month'] + '-01')
+                monthly_data['year'] = monthly_data['date'].dt.year
+                monthly_data['month_name'] = monthly_data['date'].dt.strftime('%b')
+
+                fig_heatmap = px.imshow(
+                    monthly_data.pivot(index='year', columns='month_name', values='amount'),
+                    labels=dict(x="Month", y="Year", color="Revenue"),
+                    color_continuous_scale='Viridis',
+                    aspect="auto"
+                )
+                fig_heatmap.update_layout(
+                    title="<b>Annual Revenue Heatmap</b>",
+                    xaxis_title="Month",
+                    yaxis_title="Year",
+                    height=500,
+                    hovermode="closest",
+                    margin=dict(l=20, r=20, t=60, b=20)
+                )
+                fig_heatmap.update_traces(
+                    hovertemplate="<b>%{y} %{x}</b><br>Revenue: ₹%{z:,.2f}<extra></extra>"
+                )
+                st.plotly_chart(fig_heatmap, use_container_width=True)
+
+            with m_chart2:
+                # Polar Area Chart (unchanged)
+                monthly_data['angle'] = 360 / len(monthly_data)
+                monthly_data['radius'] = monthly_data['amount'] / monthly_data['amount'].max()
+
+                fig_polar = px.bar_polar(
+                    monthly_data,
+                    r="radius",
+                    theta="month",
+                    color="amount",
+                    template="plotly_dark",
+                    color_continuous_scale=px.colors.cyclical.Twilight,
+                    hover_name="month",
+                    hover_data={"amount": ":,.2f", "radius": False}
+                )
+                fig_polar.update_layout(
+                    title="<b>Monthly Distribution</b>",
+                    polar=dict(
+                        radialaxis=dict(visible=False),
+                        angularaxis=dict(direction="clockwise")
+                    ),
+                    height=500,
+                    showlegend=False
+                )
+                fig_polar.update_traces(
+                    hovertemplate="<b>%{hovertext}</b><br>Revenue: ₹%{customdata[0]:,.2f}<extra></extra>"
+                )
+                st.plotly_chart(fig_polar, use_container_width=True)
+
+            # Animated Bar Race Chart (unchanged)
+            st.subheader("Revenue Growth Over Time")
+            monthly_data_sorted = monthly_data.sort_values('date')
+            monthly_data_sorted['month_name'] = monthly_data_sorted['date'].dt.strftime('%b')
+            monthly_data_sorted['cumulative'] = monthly_data_sorted['amount'].cumsum()
+
+            fig_race = px.bar(
+                monthly_data_sorted,
+                x='month_name',
+                y='amount',
+                color='amount',
+                animation_frame='year',
+                color_continuous_scale='Rainbow',
+                range_y=[0, float(monthly_data['amount'].max()) * 1.1],
+                category_orders={"month_name": ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]}
+            )
+
+            fig_race.update_layout(
+                title="<b>Monthly Revenue Race</b>",
+                xaxis_title="Month",
+                yaxis_title="Revenue (₹)",
+                height=500,
+                transition={'duration': 1000},
+                updatemenus=[dict(
+                    type="buttons",
+                    buttons=[dict(label="Play",
+                                  method="animate",
+                                  args=[None, {"frame": {"duration": 500, "redraw": True}}])]
+                )]
+            )
+            fig_race.update_traces(
+                hovertemplate="<b>%{x}</b><br>Revenue: ₹%{y:,.2f}<extra></extra>"
+            )
+            st.plotly_chart(fig_race, use_container_width=True)
+
+            # 3D Surface Plot with Time Dimension (unchanged)
+            st.subheader("Revenue Landscape")
+            years = monthly_data['year'].nunique()
+            months = 12
+
+            if years >= 2:
+                z_data = monthly_data.pivot(index='year', columns='month_name', values='amount').values
+
+                fig_3d = go.Figure(go.Surface(
+                    z=z_data,
+                    colorscale='Plasma',
+                    showscale=True,
+                    contours={
+                        "z": {"show": True, "usecolormap": True, "highlightcolor": "limegreen", "project_z": True}
+                    }
+                ))
+                fig_3d.update_layout(
+                    title="<b>Revenue Landscape</b>",
+                    scene=dict(
+                        xaxis=dict(title='Month', tickvals=list(range(12)),
+                                   ticktext=['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                                             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']),
+                        yaxis=dict(title='Year'),
+                        zaxis=dict(title='Revenue (₹)'),
+                        camera=dict(
+                            eye=dict(x=1.5, y=1.5, z=0.5)
+                        )
+                    ),
+                    height=600,
+                    margin=dict(l=0, r=0, b=0, t=30)
+                )
+                st.plotly_chart(fig_3d, use_container_width=True)
+            else:
+                st.warning("Need at least 2 years of data to show 3D surface plot")
+
+        else:
+            st.warning("No monthly revenue data available.")
+
 
 def doctor_patient_ratio_donut():
     """Enhanced doctor-patient ratio visualization with dynamic colors."""
@@ -2469,7 +3066,7 @@ def patient_department_distribution():
         fig = px.bar(department_data, x="Department", y="Count",
                      title="🏥 Patients per Department",
                      color="Department",  # Use "Department" for multi-color bars
-                     color_discrete_sequence=px.colors.qualitative.Plotly,  # Use a qualitative color scale
+                     color_discrete_sequence=px.colors.qualitative.Plotly,  # Use of qualitative color scale
                      labels={"Count": "Number of Patients", "Department": "Department"})
         fig.update_layout(xaxis_tickangle=-45, hovermode="x unified")
         st.plotly_chart(fig)
@@ -2551,62 +3148,891 @@ def room_utilization_heatmap():
 
 
 def discharge_patients_graph():
-    """Display discharge patients over time."""
+    """Display discharge patients over time in Today/Weekly/Monthly tabs with improved layout and visualizations."""
     try:
-        # Fetch discharge data
-        discharge_data = fetch_data(
-            "SELECT DATE(discharge_date) as date, COUNT(*) as count FROM discharged_patients GROUP BY DATE(discharge_date)",
-            "discharged_patients",
-            columns=["Date", "Count"]
-        )
+        # Create navigation tabs with improved styling
+        st.markdown("""
+        <style>
+            .stTabs [data-baseweb="tab-list"] {
+                gap: 10px;
+            }
+            .stTabs [data-baseweb="tab"] {
+                padding: 8px 16px;
+                border-radius: 4px 4px 0 0;
+            }
+            .stTabs [aria-selected="true"] {
+                background-color: #6a0572;
+                color: white;
+            }
+        </style>
+        """, unsafe_allow_html=True)
 
-        # Check if discharge data is empty
-        if discharge_data.empty:
-            st.warning("No discharge data available.")
-            return
+        tab1, tab2, tab3 = st.tabs(["Today's Discharges", "This Week's Discharges", "Monthly Discharges"])
 
-        # Create a line chart for discharge patients over time
-        fig = px.line(
-            discharge_data,
-            x="Date",
-            y="Count",
-            title="📉 Discharge Patients Over Time",
-            line_shape="spline",
-            color_discrete_sequence=["#FF10F0"],  # Pink color
-            labels={"Date": "Date", "Count": "Number of Discharges"}
-        )
-        st.plotly_chart(fig)
+        # Fetch data for all time periods at once
+        today = datetime.now().strftime('%Y-%m-%d')
+        week_start = (datetime.now() - timedelta(days=datetime.now().weekday())).strftime('%Y-%m-%d')
+        month_start = datetime.now().replace(day=1).strftime('%Y-%m-%d')
+
+        # Today's Discharges Tab - Web Graph + Bubble Chart
+        with tab1:
+            st.header("🏥 Today's Discharge Dashboard", divider='rainbow')
+
+            # Fetch hourly data for today
+            today_data = fetch_data(
+                f"SELECT HOUR(discharge_date) AS hour, COUNT(*) AS count "
+                f"FROM discharged_patients WHERE DATE(discharge_date) = '{today}' "
+                f"GROUP BY hour ORDER BY hour",
+                "discharged_patients",
+                columns=["hour", "count"]
+            )
+
+            # Display KPI
+            today_total = int(today_data['count'].sum()) if not today_data.empty else 0
+
+            # Create a 3-column layout for KPIs
+            kpi1, kpi2, kpi3 = st.columns(3)
+            with kpi1:
+                st.metric("Total Discharges Today", f"{today_total}")
+            with kpi2:
+                current_hour = datetime.now().hour
+                current_hour_discharges = int(today_data.loc[today_data['hour'] == current_hour, 'count'].iloc[
+                                                  0]) if not today_data.empty and current_hour in today_data[
+                    'hour'].values else 0
+                st.metric(f"Hour {current_hour} Discharges", f"{current_hour_discharges}")
+            with kpi3:
+                avg_hourly = float(today_data['count'].mean()) if not today_data.empty else 0.0
+                st.metric("Avg Hourly Discharges", f"{avg_hourly:,.1f}")
+
+            if not today_data.empty:
+                # Convert and prepare data
+                today_data['hour_12'] = today_data['hour'].apply(
+                    lambda x: f"{x % 12 if x % 12 != 0 else 12}{'AM' if x < 12 else 'PM'}")
+
+                # Create a 2-column layout for main visualizations
+                col1, col2 = st.columns([1, 1])
+
+                with col1:
+                    # Web Graph (Radar Chart) for today's discharge distribution
+                    fig_web = go.Figure()
+
+                    fig_web.add_trace(go.Scatterpolar(
+                        r=today_data['count'],
+                        theta=today_data['hour_12'],
+                        fill='toself',
+                        fillcolor='rgba(106,5,114,0.3)',
+                        line=dict(color='#6a0572', width=3),
+                        marker=dict(
+                            size=10,
+                            color=today_data['count'],
+                            colorscale='Rainbow',
+                            showscale=True,
+                            line=dict(color='black', width=1)
+                        ),
+                        name='Hourly Discharges',
+                        hovertemplate='<b>%{theta}</b><br>Discharges: %{r:,}<extra></extra>'
+                    ))
+
+                    fig_web.update_layout(
+                        polar=dict(
+                            radialaxis=dict(
+                                visible=True,
+                                range=[0, today_data['count'].max() * 1.2],
+                                tickfont=dict(size=10)
+                            ),
+                            angularaxis=dict(
+                                direction='clockwise',
+                                rotation=90
+                            )
+                        ),
+                        title='<b>Discharge Web</b> - Hourly Distribution',
+                        height=400,
+                        margin=dict(l=50, r=50, t=50, b=50),
+                        paper_bgcolor='rgba(245,245,245,1)'
+                    )
+                    st.plotly_chart(fig_web, use_container_width=True)
+
+                with col2:
+                    # Bubble Chart with rainbow colors
+                    fig_bubble = go.Figure()
+
+                    fig_bubble.add_trace(go.Scatter(
+                        x=today_data['hour'],
+                        y=today_data['count'],
+                        mode='markers',
+                        marker=dict(
+                            size=today_data['count'] * 0.5 + 20,  # Scale bubble sizes
+                            color=today_data['count'],
+                            colorscale='Rainbow',
+                            showscale=True,
+                            opacity=0.8,
+                            line=dict(width=1, color='DarkSlateGrey')
+                        ),
+                        text=today_data['hour_12'],
+                        hovertemplate='<b>%{text}</b><br>Discharges: %{y:,}<extra></extra>',
+                        name='Discharge Bubbles'
+                    ))
+
+                    fig_bubble.update_layout(
+                        title='<b>Discharge Bubbles</b> - Hourly Performance',
+                        xaxis=dict(
+                            title='Hour of Day',
+                            tickvals=today_data['hour'],
+                            ticktext=today_data['hour_12']
+                        ),
+                        yaxis=dict(title='Number of Discharges'),
+                        height=400,
+                        plot_bgcolor='rgba(245,245,245,1)',
+                        paper_bgcolor='rgba(245,245,245,1)'
+                    )
+                    st.plotly_chart(fig_bubble, use_container_width=True)
+
+                # Additional visualizations in full width
+                st.subheader("Hourly Discharge Trends", divider='gray')
+
+                # Create a 2-column layout for trend charts
+                trend_col1, trend_col2 = st.columns([1, 1])
+
+                with trend_col1:
+                    # Line chart with area fill
+                    fig_line = go.Figure()
+                    fig_line.add_trace(go.Scatter(
+                        x=today_data['hour'],
+                        y=today_data['count'],
+                        fill='tozeroy',
+                        mode='lines+markers',
+                        line=dict(color='#6A0572', width=3),
+                        marker=dict(size=10, color='#AB83A1'),
+                        name='Discharge Flow',
+                        hovertemplate='<b>Hour %{x}</b><br>Discharges: %{y:,}<extra></extra>'
+                    ))
+                    fig_line.update_layout(
+                        title='Hourly Discharge Trend',
+                        xaxis_title='Hour of Day',
+                        yaxis_title='Number of Discharges',
+                        height=350,
+                        plot_bgcolor='rgba(245,245,245,1)'
+                    )
+                    st.plotly_chart(fig_line, use_container_width=True)
+
+                with trend_col2:
+                    # Bar chart with gradient colors
+                    fig_bar = go.Figure()
+                    fig_bar.add_trace(go.Bar(
+                        x=today_data['hour_12'],
+                        y=today_data['count'],
+                        marker=dict(
+                            color=today_data['count'],
+                            colorscale='Rainbow',
+                            line=dict(color='black', width=1)
+                        ),
+                        hovertemplate='<b>%{x}</b><br>Discharges: %{y:,}<extra></extra>'
+                    ))
+                    fig_bar.update_layout(
+                        title='Hourly Discharge Bars',
+                        xaxis_title='Time',
+                        yaxis_title='Number of Discharges',
+                        height=350,
+                        plot_bgcolor='rgba(245,245,245,1)'
+                    )
+                    st.plotly_chart(fig_bar, use_container_width=True)
+            else:
+                st.warning("No discharge data available for today.")
+
+        # Weekly Discharges Tab - Sunburst + Stacked Area Chart (unchanged but better formatted)
+        with tab2:
+            st.header("📈 Weekly Discharge Dashboard", divider='rainbow')
+
+            # Fetch daily data for current week
+            week_data = fetch_data(
+                f"SELECT DATE(discharge_date) AS day, COUNT(*) AS count "
+                f"FROM discharged_patients WHERE DATE(discharge_date) >= '{week_start}' "
+                f"GROUP BY day ORDER BY day",
+                "discharged_patients",
+                columns=["day", "count"]
+            )
+
+            # Display KPI
+            week_total = week_data['count'].sum() if not week_data.empty else 0
+
+            # Create a 3-column layout for KPIs
+            wk_col1, wk_col2, wk_col3 = st.columns(3)
+            with wk_col1:
+                st.metric("Total Discharges This Week", f"{week_total:,}")
+            with wk_col2:
+                avg_daily = float(week_data['count'].mean()) if not week_data.empty else 0.0
+                st.metric("Avg Daily Discharges", f"{avg_daily:,.1f}")
+            with wk_col3:
+                best_day = week_data.loc[week_data['count'].idxmax()] if not week_data.empty else None
+                if best_day is not None:
+                    best_day_name = pd.to_datetime(best_day['day']).strftime('%A')
+                    st.metric("Best Day", f"{best_day_name} - {best_day['count']:,}")
+
+            if not week_data.empty:
+                # Convert day column to datetime if it's not already
+                week_data['day'] = pd.to_datetime(week_data['day'])
+                week_data['day_name'] = week_data['day'].dt.day_name()
+                week_data['week'] = 'Current Week'
+
+                # Create a 2-column layout for main charts
+                wk_chart1, wk_chart2 = st.columns([1, 1])
+
+                with wk_chart1:
+                    # Sunburst chart (unchanged)
+                    fig_sunburst = go.Figure(go.Sunburst(
+                        labels=week_data['day_name'] + "<br>" + week_data['count'].astype(str),
+                        parents=week_data['week'],
+                        values=week_data['count'],
+                        marker=dict(
+                            colors=px.colors.qualitative.Pastel,
+                            line=dict(width=2, color='white')
+                        ),
+                        branchvalues="total",
+                        hoverinfo="label+value",
+                        textinfo="label"
+                    ))
+                    fig_sunburst.update_layout(
+                        title="Discharge Distribution by Weekday",
+                        margin=dict(t=30, l=0, r=0, b=0),
+                        height=400
+                    )
+                    st.plotly_chart(fig_sunburst, use_container_width=True)
+
+                with wk_chart2:
+                    # Stacked area chart for weekly trend (unchanged)
+                    fig_area = go.Figure()
+                    fig_area.add_trace(go.Scatter(
+                        x=week_data['day'],
+                        y=week_data['count'],
+                        stackgroup='one',
+                        mode='lines',
+                        line=dict(width=0.5, color='#FF9AA2'),
+                        fillcolor='rgba(255,154,162,0.6)',
+                        name='Discharges'
+                    ))
+                    fig_area.add_trace(go.Scatter(
+                        x=week_data['day'],
+                        y=week_data['count'].cumsum(),
+                        mode='lines+markers',
+                        line=dict(width=3, color='#FF0000'),
+                        marker=dict(size=10, color='#FF0000'),
+                        name='Cumulative Discharges'
+                    ))
+                    fig_area.update_layout(
+                        title='Weekly Discharge Breakdown',
+                        xaxis_title='Day',
+                        yaxis_title='Number of Discharges',
+                        hovermode='x unified',
+                        height=400
+                    )
+                    st.plotly_chart(fig_area, use_container_width=True)
+            else:
+                st.warning("No discharge data available for this week.")
+
+        # Monthly Discharges Tab - Treemap + Waterfall Chart (unchanged but better formatted)
+        with tab3:
+            st.header("📊 Monthly Discharge Dashboard", divider='rainbow')
+
+            # Fetch monthly data
+            monthly_data = fetch_data(
+                "SELECT DATE_FORMAT(discharge_date, '%Y-%m') AS month, COUNT(*) AS count "
+                "FROM discharged_patients GROUP BY month ORDER BY month",
+                "discharged_patients",
+                columns=["month", "count"]
+            )
+
+            # Display KPI with animated counter
+            current_month = datetime.now().strftime('%Y-%m')
+            month_total = monthly_data.loc[monthly_data['month'] == current_month, 'count'].iloc[
+                0] if not monthly_data.empty else 0
+
+            # Create a 3-column layout for KPIs
+            m_col1, m_col2, m_col3 = st.columns(3)
+            with m_col1:
+                st.metric(f"Current Month Discharges", f"{month_total:,}", help="Discharges for current month")
+            with m_col2:
+                avg_discharges = float(monthly_data['count'].mean()) if not monthly_data.empty else 0.0
+                st.metric("Monthly Average", f"{avg_discharges:,.1f}",
+                          delta=f"{float(month_total) - avg_discharges:,.1f} vs average",
+                          help="Comparison with historical average")
+            with m_col3:
+                best_month = monthly_data.loc[monthly_data['count'].idxmax()] if not monthly_data.empty else None
+                if best_month is not None:
+                    st.metric("Best Month", f"{best_month['month']} - {best_month['count']:,}",
+                              help="Highest discharge month in history")
+
+            if not monthly_data.empty:
+                # Create a 2-column layout for main charts
+                m_chart1, m_chart2 = st.columns([2, 1])
+
+                with m_chart1:
+                    # Interactive Calendar Heatmap
+                    monthly_data['date'] = pd.to_datetime(monthly_data['month'] + '-01')
+                    monthly_data['year'] = monthly_data['date'].dt.year
+                    monthly_data['month_name'] = monthly_data['date'].dt.strftime('%b')
+
+                    fig_heatmap = px.imshow(
+                        monthly_data.pivot(index='year', columns='month_name', values='count'),
+                        labels=dict(x="Month", y="Year", color="Discharges"),
+                        color_continuous_scale='Viridis',
+                        aspect="auto"
+                    )
+                    fig_heatmap.update_layout(
+                        title="<b>Annual Discharge Heatmap</b>",
+                        xaxis_title="Month",
+                        yaxis_title="Year",
+                        height=500,
+                        hovermode="closest",
+                        margin=dict(l=20, r=20, t=60, b=20)
+                    )
+                    fig_heatmap.update_traces(
+                        hovertemplate="<b>%{y} %{x}</b><br>Discharges: %{z:,}<extra></extra>"
+                    )
+                    st.plotly_chart(fig_heatmap, use_container_width=True)
+
+                with m_chart2:
+                    # Polar Area Chart
+                    monthly_data['angle'] = 360 / len(monthly_data)
+                    monthly_data['radius'] = monthly_data['count'] / monthly_data['count'].max()
+
+                    fig_polar = px.bar_polar(
+                        monthly_data,
+                        r="radius",
+                        theta="month",
+                        color="count",
+                        template="plotly_dark",
+                        color_continuous_scale=px.colors.cyclical.Twilight,
+                        hover_name="month",
+                        hover_data={"count": ":,.0f", "radius": False}
+                    )
+                    fig_polar.update_layout(
+                        title="<b>Monthly Distribution</b>",
+                        polar=dict(
+                            radialaxis=dict(visible=False),
+                            angularaxis=dict(direction="clockwise")
+                        ),
+                        height=500,
+                        showlegend=False
+                    )
+                    fig_polar.update_traces(
+                        hovertemplate="<b>%{hovertext}</b><br>Discharges: %{customdata[0]:,}<extra></extra>"
+                    )
+                    st.plotly_chart(fig_polar, use_container_width=True)
+
+                # Animated Bar Race Chart
+                st.subheader("Discharge Growth Over Time")
+                monthly_data_sorted = monthly_data.sort_values('date')
+                monthly_data_sorted['month_name'] = monthly_data_sorted['date'].dt.strftime('%b')
+                monthly_data_sorted['cumulative'] = monthly_data_sorted['count'].cumsum()
+
+                fig_race = px.bar(
+                    monthly_data_sorted,
+                    x='month_name',
+                    y='count',
+                    color='count',
+                    animation_frame='year',
+                    color_continuous_scale='Rainbow',
+                    range_y=[0, float(monthly_data['count'].max()) * 1.1],
+                    category_orders={"month_name": ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]}
+                )
+
+                fig_race.update_layout(
+                    title="<b>Monthly Discharge Race</b>",
+                    xaxis_title="Month",
+                    yaxis_title="Discharges",
+                    height=500,
+                    transition={'duration': 1000},
+                    updatemenus=[dict(
+                        type="buttons",
+                        buttons=[dict(
+                            label="Play",
+                            method="animate",
+                            args=[None, {"frame": {"duration": 500, "redraw": True}}]
+                        )]
+                    )]
+                )
+
+                fig_race.update_traces(
+                    hovertemplate="<b>%{x}</b><br>Discharges: %{y:,}<extra></extra>"
+                )
+
+                st.plotly_chart(fig_race, use_container_width=True)
+
+                # 3D Surface Plot with Time Dimension
+                st.subheader("Discharge Landscape")
+                years = monthly_data['year'].nunique()
+                months = 12
+
+                if years >= 2:
+                    z_data = monthly_data.pivot(index='year', columns='month_name', values='count').values
+
+                    fig_3d = go.Figure(go.Surface(
+                        z=z_data,
+                        colorscale='Plasma',
+                        showscale=True,
+                        contours={
+                            "z": {"show": True, "usecolormap": True, "highlightcolor": "limegreen", "project_z": True}
+                        }
+                    ))
+                    fig_3d.update_layout(
+                        title="<b>Discharge Landscape</b>",
+                        scene=dict(
+                            xaxis=dict(title='Month', tickvals=list(range(12))),
+                            yaxis=dict(title='Year'),
+                            zaxis=dict(title='Discharges'),
+                            camera=dict(eye=dict(x=1.5, y=1.5, z=0.5))
+                        ),
+                        height=600,
+                        margin=dict(l=0, r=0, b=0, t=30)
+                    )
+                    st.plotly_chart(fig_3d, use_container_width=True)
+                else:
+                    st.warning("Need at least 2 years of data to show 3D surface plot")
+
+            else:
+                st.warning("No monthly discharge data available.")
+
+
     except Exception as e:
         st.error(f"Error generating discharge patients graph: {e}")
         logging.error(f"Error in discharge_patients_graph: {e}")
 
 
 def add_patients_graph():
-    """Display patients added over time."""
+    """Display patients added over time in Today/Weekly/Monthly tabs with improved layout and visualizations."""
     try:
-        # Fetch patient addition data
-        add_data = fetch_data(
-            "SELECT DATE(date_of_consultancy) as date, COUNT(*) as count FROM patients GROUP BY DATE(date_of_consultancy)",
-            "patients",
-            columns=["Date", "Count"]
-        )
+        # Create navigation tabs with improved styling
+        st.markdown("""
+        <style>
+            .stTabs [data-baseweb="tab-list"] {
+                gap: 10px;
+            }
+            .stTabs [data-baseweb="tab"] {
+                padding: 8px 16px;
+                border-radius: 4px 4px 0 0;
+            }
+            .stTabs [aria-selected="true"] {
+                background-color: #6a0572;
+                color: white;
+            }
+        </style>
+        """, unsafe_allow_html=True)
 
-        # Check if patient addition data is empty
-        if add_data.empty:
-            st.warning("No patient addition data available.")
-            return
+        tab1, tab2, tab3 = st.tabs(["Today's Additions", "This Week's Additions", "Monthly Additions"])
 
-        # Create a line chart for patients added over time
-        fig = px.line(
-            add_data,
-            x="Date",
-            y="Count",
-            title="📈 Patients Added Over Time",
-            line_shape="spline",
-            color_discrete_sequence=["#BA68C8"],  # Purple color
-            labels={"Date": "Date", "Count": "Number of Patients Added"}
-        )
-        st.plotly_chart(fig)
+        # Fetch data for all time periods at once
+        today = datetime.now().strftime('%Y-%m-%d')
+        week_start = (datetime.now() - timedelta(days=datetime.now().weekday())).strftime('%Y-%m-%d')
+        month_start = datetime.now().replace(day=1).strftime('%Y-%m-%d')
+
+        # Today's Additions Tab - Web Graph + Bubble Chart
+        with tab1:
+            st.header("🏥 Today's Patient Additions", divider='rainbow')
+
+            # Fetch hourly data for today
+            today_data = fetch_data(
+                f"SELECT HOUR(date_of_consultancy) AS hour, COUNT(*) AS count "
+                f"FROM patients WHERE DATE(date_of_consultancy) = '{today}' "
+                f"GROUP BY hour ORDER BY hour",
+                "patients",
+                columns=["hour", "count"]
+            )
+
+            # Display KPI
+            today_total = int(today_data['count'].sum()) if not today_data.empty else 0
+
+            # Create a 3-column layout for KPIs
+            kpi1, kpi2, kpi3 = st.columns(3)
+            with kpi1:
+                st.metric("Total Additions Today", f"{today_total:,}")
+            with kpi2:
+                current_hour = datetime.now().hour
+                current_hour_additions = int(today_data.loc[today_data['hour'] == current_hour, 'count'].iloc[
+                                                 0]) if not today_data.empty and current_hour in today_data[
+                    'hour'].values else 0
+                st.metric(f"Hour {current_hour} Additions", f"{current_hour_additions:,}")
+            with kpi3:
+                avg_hourly = float(today_data['count'].mean()) if not today_data.empty else 0.0
+                st.metric("Avg Hourly Additions", f"{avg_hourly:,.1f}")
+
+            if not today_data.empty:
+                # Convert and prepare data
+                today_data['hour_12'] = today_data['hour'].apply(
+                    lambda x: f"{x % 12 if x % 12 != 0 else 12}{'AM' if x < 12 else 'PM'}")
+
+                # Create a 2-column layout for main visualizations
+                col1, col2 = st.columns([1, 1])
+
+                with col1:
+                    # Web Graph (Radar Chart) for today's additions distribution
+                    fig_web = go.Figure()
+
+                    fig_web.add_trace(go.Scatterpolar(
+                        r=today_data['count'],
+                        theta=today_data['hour_12'],
+                        fill='toself',
+                        fillcolor='rgba(106,5,114,0.3)',
+                        line=dict(color='#6a0572', width=3),
+                        marker=dict(
+                            size=10,
+                            color=today_data['count'],
+                            colorscale='Rainbow',
+                            showscale=True,
+                            line=dict(color='black', width=1)
+                        ),
+                        name='Hourly Additions',
+                        hovertemplate='<b>%{theta}</b><br>Additions: %{r:,}<extra></extra>'
+                    ))
+
+                    fig_web.update_layout(
+                        polar=dict(
+                            radialaxis=dict(
+                                visible=True,
+                                range=[0, today_data['count'].max() * 1.2],
+                                tickfont=dict(size=10)
+                            ),
+                            angularaxis=dict(
+                                direction='clockwise',
+                                rotation=90
+                            )
+                        ),
+                        title='<b>Additions Web</b> - Hourly Distribution',
+                        height=400,
+                        margin=dict(l=50, r=50, t=50, b=50),
+                        paper_bgcolor='rgba(245,245,245,1)'
+                    )
+                    st.plotly_chart(fig_web, use_container_width=True)
+
+                with col2:
+                    # Bubble Chart with rainbow colors
+                    fig_bubble = go.Figure()
+
+                    fig_bubble.add_trace(go.Scatter(
+                        x=today_data['hour'],
+                        y=today_data['count'],
+                        mode='markers',
+                        marker=dict(
+                            size=today_data['count'] * 0.5 + 20,  # Scale bubble sizes
+                            color=today_data['count'],
+                            colorscale='Rainbow',
+                            showscale=True,
+                            opacity=0.8,
+                            line=dict(width=1, color='DarkSlateGrey')
+                        ),
+                        text=today_data['hour_12'],
+                        hovertemplate='<b>%{text}</b><br>Additions: %{y:,}<extra></extra>',
+                        name='Addition Bubbles'
+                    ))
+
+                    fig_bubble.update_layout(
+                        title='<b>Addition Bubbles</b> - Hourly Performance',
+                        xaxis=dict(
+                            title='Hour of Day',
+                            tickvals=today_data['hour'],
+                            ticktext=today_data['hour_12']
+                        ),
+                        yaxis=dict(title='Number of Additions'),
+                        height=400,
+                        plot_bgcolor='rgba(245,245,245,1)',
+                        paper_bgcolor='rgba(245,245,245,1)'
+                    )
+                    st.plotly_chart(fig_bubble, use_container_width=True)
+
+                # Additional visualizations in full width
+                st.subheader("Hourly Addition Trends", divider='gray')
+
+                # Create a 2-column layout for trend charts
+                trend_col1, trend_col2 = st.columns([1, 1])
+
+                with trend_col1:
+                    # Line chart with area fill
+                    fig_line = go.Figure()
+                    fig_line.add_trace(go.Scatter(
+                        x=today_data['hour'],
+                        y=today_data['count'],
+                        fill='tozeroy',
+                        mode='lines+markers',
+                        line=dict(color='#6A0572', width=3),
+                        marker=dict(size=10, color='#AB83A1'),
+                        name='Addition Flow',
+                        hovertemplate='<b>Hour %{x}</b><br>Additions: %{y:,}<extra></extra>'
+                    ))
+                    fig_line.update_layout(
+                        title='Hourly Addition Trend',
+                        xaxis_title='Hour of Day',
+                        yaxis_title='Number of Additions',
+                        height=350,
+                        plot_bgcolor='rgba(245,245,245,1)'
+                    )
+                    st.plotly_chart(fig_line, use_container_width=True)
+
+                with trend_col2:
+                    # Bar chart with gradient colors
+                    fig_bar = go.Figure()
+                    fig_bar.add_trace(go.Bar(
+                        x=today_data['hour_12'],
+                        y=today_data['count'],
+                        marker=dict(
+                            color=today_data['count'],
+                            colorscale='Rainbow',
+                            line=dict(color='black', width=1)
+                        ),
+                        hovertemplate='<b>%{x}</b><br>Additions: %{y:,}<extra></extra>'
+                    ))
+                    fig_bar.update_layout(
+                        title='Hourly Addition Bars',
+                        xaxis_title='Time',
+                        yaxis_title='Number of Additions',
+                        height=350,
+                        plot_bgcolor='rgba(245,245,245,1)'
+                    )
+                    st.plotly_chart(fig_bar, use_container_width=True)
+            else:
+                st.warning("No addition data available for today.")
+
+        # Weekly Additions Tab - Sunburst + Stacked Area Chart (unchanged but better formatted)
+        with tab2:
+            st.header("📈 Weekly Patient Additions", divider='rainbow')
+
+            # Fetch daily data for current week
+            week_data = fetch_data(
+                f"SELECT DATE(date_of_consultancy) AS day, COUNT(*) AS count "
+                f"FROM patients WHERE DATE(date_of_consultancy) >= '{week_start}' "
+                f"GROUP BY day ORDER BY day",
+                "patients",
+                columns=["day", "count"]
+            )
+
+            # Display KPI
+            week_total = week_data['count'].sum() if not week_data.empty else 0
+
+            # Create a 3-column layout for KPIs
+            wk_col1, wk_col2, wk_col3 = st.columns(3)
+            with wk_col1:
+                st.metric("Total Additions This Week", f"{week_total:,}")
+            with wk_col2:
+                avg_daily = float(week_data['count'].mean()) if not week_data.empty else 0.0
+                st.metric("Avg Daily Additions", f"{avg_daily:,.1f}")
+            with wk_col3:
+                best_day = week_data.loc[week_data['count'].idxmax()] if not week_data.empty else None
+                if best_day is not None:
+                    best_day_name = pd.to_datetime(best_day['day']).strftime('%A')
+                    st.metric("Best Day", f"{best_day_name} - {best_day['count']:,}")
+
+            if not week_data.empty:
+                # Convert day column to datetime
+                week_data['day'] = pd.to_datetime(week_data['day'])
+                week_data['day_name'] = week_data['day'].dt.day_name()
+                week_data['week'] = 'Current Week'
+
+                wk_chart1, wk_chart2 = st.columns([1, 1])
+
+                with wk_chart1:
+                    fig_sunburst = go.Figure(go.Sunburst(
+                        labels=week_data['day_name'] + "<br>" + week_data['count'].astype(str),
+                        parents=week_data['week'],
+                        values=week_data['count'],
+                        marker=dict(
+                            colors=px.colors.qualitative.Pastel,
+                            line=dict(width=2, color='white')
+                        ),
+                        branchvalues="total",
+                        hoverinfo="label+value",
+                        textinfo="label"
+                    ))
+                    fig_sunburst.update_layout(
+                        title="Addition Distribution by Weekday",
+                        margin=dict(t=30, l=0, r=0, b=0),
+                        height=400
+                    )
+                    st.plotly_chart(fig_sunburst, use_container_width=True)
+
+                with wk_chart2:
+                    fig_area = go.Figure()
+                    fig_area.add_trace(go.Scatter(
+                        x=week_data['day'],
+                        y=week_data['count'],
+                        stackgroup='one',
+                        mode='lines',
+                        line=dict(width=0.5, color='#FF9AA2'),
+                        fillcolor='rgba(255,154,162,0.6)',
+                        name='Additions'
+                    ))
+                    fig_area.add_trace(go.Scatter(
+                        x=week_data['day'],
+                        y=week_data['count'].cumsum(),
+                        mode='lines+markers',
+                        line=dict(width=3, color='#FF0000'),
+                        marker=dict(size=10, color='#FF0000'),
+                        name='Cumulative Additions'
+                    ))
+                    fig_area.update_layout(
+                        title='Weekly Addition Breakdown',
+                        xaxis_title='Day',
+                        yaxis_title='Number of Additions',
+                        hovermode='x unified',
+                        height=400
+                    )
+                    st.plotly_chart(fig_area, use_container_width=True)
+            else:
+                st.warning("No addition data available for this week.")
+
+        with tab3:
+            st.header("📊 Monthly Patient Additions", divider='rainbow')
+
+            monthly_data = fetch_data(
+                "SELECT DATE_FORMAT(date_of_consultancy, '%Y-%m') AS month, COUNT(*) AS count "
+                "FROM patients GROUP BY month ORDER BY month",
+                "patients",
+                columns=["month", "count"]
+            )
+
+            current_month = datetime.now().strftime('%Y-%m')
+            month_total = monthly_data.loc[monthly_data['month'] == current_month, 'count'].iloc[
+                0] if not monthly_data.empty else 0
+
+            m_col1, m_col2, m_col3 = st.columns(3)
+            with m_col1:
+                st.metric("Current Month Additions", f"{month_total:,}", help="Additions for current month")
+            with m_col2:
+                avg_additions = float(monthly_data['count'].mean()) if not monthly_data.empty else 0.0
+                st.metric("Monthly Average", f"{avg_additions:,.1f}",
+                          delta=f"{float(month_total) - avg_additions:,.1f} vs average",
+                          help="Comparison with historical average")
+            with m_col3:
+                best_month = monthly_data.loc[monthly_data['count'].idxmax()] if not monthly_data.empty else None
+                if best_month is not None:
+                    st.metric("Best Month", f"{best_month['month']} - {best_month['count']:,}",
+                              help="Highest addition month in history")
+
+            if not monthly_data.empty:
+                m_chart1, m_chart2 = st.columns([2, 1])
+
+                with m_chart1:
+                    monthly_data['date'] = pd.to_datetime(monthly_data['month'] + '-01')
+                    monthly_data['year'] = monthly_data['date'].dt.year
+                    monthly_data['month_name'] = monthly_data['date'].dt.strftime('%b')
+
+                    fig_heatmap = px.imshow(
+                        monthly_data.pivot(index='year', columns='month_name', values='count'),
+                        labels=dict(x="Month", y="Year", color="Additions"),
+                        color_continuous_scale='Viridis',
+                        aspect="auto"
+                    )
+                    fig_heatmap.update_layout(
+                        title="<b>Annual Addition Heatmap</b>",
+                        xaxis_title="Month",
+                        yaxis_title="Year",
+                        height=500,
+                        hovermode="closest",
+                        margin=dict(l=20, r=20, t=60, b=20)
+                    )
+                    fig_heatmap.update_traces(
+                        hovertemplate="<b>%{y} %{x}</b><br>Additions: %{z:,}<extra></extra>"
+                    )
+                    st.plotly_chart(fig_heatmap, use_container_width=True)
+
+                with m_chart2:
+                    monthly_data['angle'] = 360 / len(monthly_data)
+                    monthly_data['radius'] = monthly_data['count'] / monthly_data['count'].max()
+
+                    fig_polar = px.bar_polar(
+                        monthly_data,
+                        r="radius",
+                        theta="month",
+                        color="count",
+                        template="plotly_dark",
+                        color_continuous_scale=px.colors.cyclical.Twilight,
+                        hover_name="month",
+                        hover_data={"count": ":,.0f", "radius": False}
+                    )
+                    fig_polar.update_layout(
+                        title="<b>Monthly Distribution</b>",
+                        polar=dict(
+                            radialaxis=dict(visible=False),
+                            angularaxis=dict(direction="clockwise")
+                        ),
+                        height=500,
+                        showlegend=False
+                    )
+                    fig_polar.update_traces(
+                        hovertemplate="<b>%{hovertext}</b><br>Additions: %{customdata[0]:,}<extra></extra>"
+                    )
+                    st.plotly_chart(fig_polar, use_container_width=True)
+
+                # Animated Bar Race Chart
+                st.subheader("Addition Growth Over Time")
+                monthly_data_sorted = monthly_data.sort_values('date')
+                monthly_data_sorted['month_name'] = monthly_data_sorted['date'].dt.strftime('%b')
+                monthly_data_sorted['cumulative'] = monthly_data_sorted['count'].cumsum()
+
+                fig_race = px.bar(
+                    monthly_data_sorted,
+                    x='month_name',
+                    y='count',
+                    color='count',
+                    animation_frame='year',
+                    color_continuous_scale='Rainbow',
+                    range_y=[0, float(monthly_data['count'].max()) * 1.1],
+                    category_orders={"month_name": ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]}
+                )
+
+                fig_race.update_layout(
+                    title="<b>Monthly Addition Race</b>",
+                    xaxis_title="Month",
+                    yaxis_title="Additions",
+                    height=500,
+                    transition={'duration': 1000},
+                    updatemenus=[dict(
+                        type="buttons",
+                        buttons=[dict(
+                            label="Play",
+                            method="animate",
+                            args=[None, {"frame": {"duration": 500, "redraw": True}}]
+                        )]
+                    )]
+                )
+
+                fig_race.update_traces(
+                    hovertemplate="<b>%{x}</b><br>Additions: %{y:,}<extra></extra>"
+                )
+
+                st.plotly_chart(fig_race, use_container_width=True)
+
+                # 3D Surface Plot
+                st.subheader("Addition Landscape")
+                years = monthly_data['year'].nunique()
+                months = 12
+
+                if years >= 2:
+                    z_data = monthly_data.pivot(index='year', columns='month_name', values='count').values
+
+                    fig_3d = go.Figure(go.Surface(
+                        z=z_data,
+                        colorscale='Plasma',
+                        showscale=True,
+                        contours={
+                            "z": {"show": True, "usecolormap": True, "highlightcolor": "limegreen", "project_z": True}
+                        }
+                    ))
+                    fig_3d.update_layout(
+                        title="<b>Addition Landscape</b>",
+                        scene=dict(
+                            xaxis=dict(title='Month'),
+                            yaxis=dict(title='Year'),
+                            zaxis=dict(title='Additions')
+                        ),
+                        height=600,
+                        margin=dict(l=0, r=0, b=0, t=30)
+                    )
+                    st.plotly_chart(fig_3d, use_container_width=True)
+                else:
+                    st.warning("Need at least 2 years of data to show 3D surface plot")
+            else:
+                st.warning("No monthly addition data available.")
+
     except Exception as e:
         st.error(f"Error generating patients added graph: {e}")
         logging.error(f"Error in add_patients_graph: {e}")
@@ -2664,8 +4090,8 @@ def staff_shift_sunburst():
         st.error(f"Error generating staff shift sunburst chart: {e}")
         logging.error(f"Error in staff_shift_sunburst: {e}")
 
+
 def patient_age_distribution():
-    """Enhanced age distribution visualization with dynamic age groups and multi-colors."""
     age_data = fetch_data(
         """
         SELECT 
@@ -2693,8 +4119,8 @@ def patient_age_distribution():
     else:
         st.warning("No patient age data available.")
 
+
 def live_inventory_gauge():
-    """Enhanced inventory gauge with dynamic thresholds."""
     st.markdown("### 📦 Inventory Status")
     low_stock_percent_data = fetch_data(
         "SELECT COUNT(*) * 100.0 / (SELECT COUNT(*) FROM inventory) as percent FROM inventory WHERE quantity < 10",
@@ -2718,7 +4144,6 @@ def live_inventory_gauge():
 
 
 def appointment_calendar():
-    """Visualize daily appointments over months using a multi-colored line graph."""
     appointment_data = fetch_data(
         "SELECT DAY(appointment_date) as day, MONTH(appointment_date) as month, COUNT(*) as count FROM appointments GROUP BY day, month",
         "appointments",
@@ -2747,7 +4172,6 @@ def appointment_calendar():
 
 
 def disease_word_cloud():
-    """Visualize disease frequency with attractive multi-colors for different diseases."""
     disease_freq_data = fetch_data(
         "SELECT diseases, COUNT(*) as count FROM patients GROUP BY diseases",
         "patients",
@@ -2769,6 +4193,7 @@ def disease_word_cloud():
         st.plotly_chart(fig)
     else:
         st.warning("No disease data available to display.")
+
 
 def emergency_response_time():
     response_time_data = fetch_data(
@@ -2796,7 +4221,6 @@ def emergency_response_time():
 # ------------------ Advanced Search ------------------
 def advanced_search():
     st.markdown('<div class="header-lightblue"><h3>🔍 Advanced Search</h3></div>', unsafe_allow_html=True)
-
 
     # Define search options based on user role
     if st.session_state['user_role'] == "Patient":
@@ -2875,7 +4299,7 @@ def advanced_search():
                     OR d.id = '{search_query}'
                     OR d.department LIKE '%{search_query}%'
             """
-            # Define the columns for the query results
+
             columns = ["Doctor ID", "Doctor Name", "Department", "Shift", "Role"]
             results = fetch_data(query, "doctor", columns)
 
@@ -2892,7 +4316,7 @@ def advanced_search():
                     OR a.doctor_name LIKE '%{search_query}%'
                     OR a.id = '{search_query}'
             """
-            # Define the columns for the query results
+
             columns = ["Appointment ID", "Patient Name", "Doctor Name", "Appointment Date", "Appointment Time"]
             results = fetch_data(query, "appointments", columns)
 
@@ -3048,35 +4472,57 @@ def advanced_search():
         else:
             st.warning("No matching records found.")
 
+
 # ------------------ Schedule and View Appointments ------------------
 def schedule_appointment():
-    """
-    Schedule Appointment: Accessible to Admin, Doctor, Receptionist, and Nurse.
-    """
     st.markdown('<div class="header-lightblue"><h3>📅 Schedule Appointment</h3></div>', unsafe_allow_html=True)
     check_user_role(["Admin", "Doctor", "Receptionist", "Nurse", "Patient"])
 
-    # Fetch patient names
-    patient_data = fetch_data("SELECT id, name FROM patients", "patients", columns=["id", "name"])
-
-    if patient_data.empty:
-        st.warning("No patients found. Please add patients first.")
-        return
-
-     # Create a radio button to choose between existing or new patient
+    # Create a radio button to choose between existing or new patient
     patient_option = st.radio("Patient Type", ["Select Existing Patient", "Enter New Patient"])
 
     if patient_option == "Select Existing Patient":
+        # Fetch patient data with columns that exist in your table
+        patient_data = fetch_data("SELECT id, name, contact_no, age, dob, address, gender FROM patients",
+                                  "patients",
+                                  columns=["id", "name", "contact_no", "age", "dob", "address", "gender"])
+
         if patient_data.empty:
             st.warning("No patients found. Please add patients first or choose 'Enter New Patient'.")
             return
+
         # Select patient from dropdown
-        patient_name = st.selectbox("Select Patient", patient_data["name"])
+        selected_patient = st.selectbox("Select Patient", patient_data["name"])
+
+        # Get all details for selected patient
+        patient_info = patient_data[patient_data["name"] == selected_patient].iloc[0]
+        patient_name = patient_info["name"]
+        contact_no = patient_info["contact_no"]
+        age = patient_info["age"]
+        dob = patient_info["dob"]
+        address = patient_info["address"]
+        gender = patient_info["gender"]
+
+        # Show existing patient details (read-only)
+        st.info(f"Patient Details: {patient_name}, Phone: {contact_no}, Age: {age}, Gender: {gender}, DOB: {dob}")
+        address = st.text_area("Address", value=address, key="existing_patient_address")
+
     else:
-        # Enter new patient name manually
+        # Enter new patient details manually
         patient_name = st.text_input("Enter Patient Name*", key="new_patient_name")
-        if not patient_name:
-            st.warning("Please enter a patient name")
+        contact_no = st.text_input("Enter Phone Number*", key="new_patient_phone")
+        age = st.number_input("Enter Age", min_value=0, max_value=120, value=None, key="new_patient_age")
+        dob = st.date_input(
+            "Date of Birth* (YYYY-MM-DD)",
+            help="Enter date in YYYY-MM-DD format",
+            min_value=datetime(1900, 1, 1).date(),
+            max_value=datetime.today().date(),
+            key="new_patient_dob")
+        gender = st.selectbox("Gender", ["M", "F"], key="new_patient_gender")
+        address = st.text_area("Address", key="new_patient_address")
+
+        if not patient_name or not contact_no:
+            st.warning("Please enter at least patient name and phone number")
             return
 
     # Fetch unique departments from the doctor table
@@ -3113,27 +4559,74 @@ def schedule_appointment():
     appointment_time = st.time_input("Appointment Time*")
 
     if st.button("Schedule Appointment"):
-        # Insert appointment data
-        insert_data(
+        try:
+            # Get both connection and cursor
+            con, cursor = get_db_cursor()
+            if not cursor:
+                st.error("Failed to connect to database")
+                return
+
+            # Insert appointment data - matching your appointments table structure
+            insert_query = """
+                INSERT INTO appointments 
+                (patient_name, doctor_name, appointment_date, appointment_time)
+                VALUES (%s, %s, %s, %s)
             """
-            INSERT INTO appointments (patient_name, doctor_name, appointment_date, appointment_time)
-            VALUES (%s, %s, %s, %s)
-            """,
-            (patient_name, doctor_name, appointment_date, appointment_time)
-        )
-        st.success("Appointment scheduled successfully!")
+            cursor.execute(insert_query, (
+                patient_name,
+                doctor_name,
+                appointment_date,
+                appointment_time
+            ))
+
+            # Get the appointment ID
+            appointment_id = cursor.lastrowid
+            con.commit()
+
+            # Prepare confirmation message
+            confirmation_message = f"""
+            <h3>Appointment Confirmation</h3>
+            <p>Dear {patient_name},</p>
+            <p>Your appointment has been scheduled successfully!</p>
+
+            <p><strong>Appointment Details:</strong></p>
+            <ul>
+                <li>Appointment ID: {appointment_id}</li>
+                <li>Doctor: {doctor_name}</li>
+                <li>Department: {department}</li>
+                <li>Date: {appointment_date}</li>
+                <li>Time: {appointment_time}</li>
+            </ul>
+
+            <p>Please arrive 15 minutes before your scheduled time.</p>
+            <p>Thank you,<br>Hospital Management</p>
+            """
+
+            st.success("Appointment scheduled successfully!")
+
+        except Exception as e:
+            st.error(f"Error scheduling appointment: {str(e)}")
+        finally:
+            # Ensure proper cleanup
+            if 'cursor' in locals() and cursor:
+                cursor.close()
+            if 'con' in locals() and con and con.is_connected():
+                con.close()
+
 
 def view_appointments():
-    """
-    View Appointments: Accessible to Admin, Doctor, Receptionist, and Nurse.
-    """
-    check_user_role(["Admin", "Doctor", "Receptionist", "Nurse","Patient"])
+    check_user_role(["Admin", "Doctor", "Receptionist", "Nurse", "Patient"])
     st.markdown('<div class="header-lightblue"><h3>📅 Appointment Records</h3></div>', unsafe_allow_html=True)
 
-    # Fetch appointment data with department and shift from the doctor and staff tables
+    # Fetch appointment data with all details
     query = """
         SELECT a.id AS 'Appointment ID', 
-               a.patient_name AS 'Patient Name', 
+               a.patient_name AS 'Patient Name',
+               p.contact_no AS 'Phone Number',
+               p.age AS 'Age',
+               p.dob AS 'Date of Birth',
+               p.address AS 'Address',
+               p.gender AS 'Gender',
                s.staff_name AS 'Doctor Name', 
                d.department AS 'Department', 
                s.shift AS 'Shift', 
@@ -3141,11 +4634,13 @@ def view_appointments():
                a.appointment_time AS 'Appointment Time',
                a.created_at AS 'Created At'
         FROM appointments a
-        JOIN staff s ON a.doctor_name = s.staff_name  -- Join appointments with staff using doctor_name
-        JOIN doctor d ON s.id = d.staff_id  -- Join staff with doctor using staff_id
+        LEFT JOIN patients p ON a.patient_name = p.name
+        JOIN staff s ON a.doctor_name = s.staff_name
+        JOIN doctor d ON s.id = d.staff_id
+        ORDER BY a.appointment_date DESC, a.appointment_time DESC
     """
-    columns = ["Appointment ID", "Patient Name", "Doctor Name", "Department", "Shift", "Appointment Date",
-               "Appointment Time", "Created At"]
+    columns = ["Appointment ID", "Patient Name", "Phone Number", "Age", "Date of Birth", "Address", "Gender",
+               "Doctor Name", "Department", "Shift", "Appointment Date", "Appointment Time", "Created At"]
     df = fetch_data(query, "appointments", columns)
 
     if df.empty:
@@ -3164,25 +4659,42 @@ def view_appointments():
                 mime="text/csv"
             )
 
+
 # ------------------ Inventory Management Section ------------------
 def manage_inventory():
     check_user_role(["Admin", "Doctor", "Nurse"])
     st.markdown('<div class="header-lightblue"><h3>💊 Inventory Management</h3></div>', unsafe_allow_html=True)
-    item_name = st.text_input("Item Name")
+
+    item_name = st.text_input("Item Name").strip()
     quantity = st.number_input("Quantity", min_value=0)
     expiry_date = st.date_input("Expiry Date")
+
     if st.button("Add Item"):
-        insert_data("INSERT INTO inventory (item_name, quantity, expiry_date) VALUES (%s, %s, %s)",
-                    (item_name, quantity, expiry_date))
-        st.success("Item Added to Inventory!")
+        if not item_name:
+            st.error("Item name cannot be empty!")
+            return
+
+        try:
+            insert_data("""
+                INSERT INTO inventory (item_name, quantity, expiry_date)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    quantity = quantity + VALUES(quantity),
+                    expiry_date = VALUES(expiry_date)
+            """, (item_name, quantity, expiry_date))
+
+            st.success("Item successfully added/updated in inventory!")
+
+        except Exception as e:
+            st.error(f"Error occurred: {str(e)}")
 
 
 def view_inventory():
     st.markdown('<div class="header-lightblue"><h3>💊 Inventory Records</h3></div>', unsafe_allow_html=True)
-    check_user_role(["Admin", "Doctor", "Nurse","Receptionist"])
+    check_user_role(["Admin", "Doctor", "Nurse", "Receptionist"])
 
-    # Define all 5 columns to match the inventory table structure
-    columns = ["Item ID", "Item Name", "Quantity", "Expiry Date", "Created At"]
+    # Updated columns to include expiry_date
+    columns = ["id", "item_name", "quantity", "expiry_date", "last_updated"]
 
     # Fetch data from the inventory table
     df = fetch_data("SELECT * FROM inventory", "inventory", columns)
@@ -3202,6 +4714,7 @@ def view_inventory():
                 file_name="inventory_records.csv",
                 mime="text/csv"
             )
+
 
 # ------------------ Staff Management Section ------------------
 def manage_staff():
@@ -3240,58 +4753,20 @@ def view_patient_history():
     # Search Box for Filtering Patients
     search_query = st.text_input("Search by Patient Name, ID, Medicine, or Quantity", "")
 
-    # SQL query to get combined patient history
-    query = """
-        SELECT 
-            p.id AS 'Patient ID',
-            p.name AS 'Patient Name',
-            p.dob AS 'Date of Birth',
-            p.contact_no AS 'Contact No',
-            p.consultant_name AS 'Consultant',
-            p.gender AS 'Gender',
-            p.department AS 'Department',
-            p.diseases AS 'Disease',
-            p.fees AS 'Fees',
-            p.medicine AS 'Medicine',
-            p.quantity AS 'Quantity',
-            GROUP_CONCAT(DISTINCT b.bill_no) AS 'Bill Numbers',
-            GROUP_CONCAT(DISTINCT b.total_amount) AS 'Bill Amounts',
-            GROUP_CONCAT(DISTINCT r.room_number) AS 'Room Numbers',
-            GROUP_CONCAT(DISTINCT r.room_type) AS 'Room Types',
-            GROUP_CONCAT(DISTINCT d.discharge_date) AS 'Discharge Dates',
-            GROUP_CONCAT(DISTINCT d.discharge_reason) AS 'Discharge Reasons',
-            GROUP_CONCAT(DISTINCT ep.admission_date) AS 'Emergency Admission Dates',
-            GROUP_CONCAT(DISTINCT ep.blood_type) AS 'Emergency Blood Types',
-            GROUP_CONCAT(DISTINCT s.staff_name) AS 'Assigned Doctors'  # Fetch doctor names from staff table
-        FROM 
-            patients p
-        LEFT JOIN 
-            bill_details b ON p.id = b.patient_id
-        LEFT JOIN 
-            rooms r ON p.id = r.patient_id
-        LEFT JOIN 
-            discharged_patients d ON p.id = d.patient_id
-        LEFT JOIN 
-            emergency_patients ep ON p.id = ep.id
-        LEFT JOIN 
-            doctor doc ON p.consultant_name = doc.staff_id  # Join with doctor table
-        LEFT JOIN 
-            staff s ON doc.staff_id = s.id  # Join with staff table to get doctor names
-        GROUP BY 
-            p.id, p.name, p.dob, p.contact_no, p.consultant_name, p.gender, 
-            p.department, p.diseases, p.fees, p.medicine, p.quantity
-    """
+    # Query the view directly (no need for joins in Python)
+    query = "SELECT * FROM patient_history"
 
+    # Define column labels matching the view
     columns = [
-        "Patient ID", "Patient Name", "Date of Birth", "Contact No",
-        "Consultant", "Gender", "Department", "Disease", "Fees",
-        "Medicine", "Quantity", "Bill Numbers", "Bill Amounts",
-        "Room Numbers", "Room Types", "Discharge Dates",
-        "Discharge Reasons", "Emergency Admission Dates", "Emergency Blood Types",
-        "Assigned Doctors"  # Added assigned doctors
+        "patient_id", "patient_name", "date_of_birth", "contact_no",
+        "consultant_name", "gender", "department", "diseases", "fees",
+        "medicine", "quantity", "bill_numbers", "bill_amounts",
+        "room_numbers", "room_types", "discharge_dates",
+        "discharge_reasons", "emergency_admission_dates", "emergency_blood_types",
+        "assigned_doctors"
     ]
 
-    df = fetch_data(query, "patients", columns)
+    df = fetch_data(query, "patient_history", columns)
 
     if df.empty:
         st.info("No patient history records found.")
@@ -3299,43 +4774,36 @@ def view_patient_history():
         # Clean and format data
         df = df.fillna('N/A')
 
-        # Convert date format for Date of Birth
-        if 'Date of Birth' in df.columns:
-            df['Date of Birth'] = pd.to_datetime(df['Date of Birth'], errors='coerce').dt.strftime('%Y-%m-%d')
+        # Convert date formats for display
+        if 'date_of_birth' in df.columns:
+            df['date_of_birth'] = pd.to_datetime(df['date_of_birth'], errors='coerce').dt.strftime('%Y-%m-%d')
 
-        # Convert date format for Discharge Dates
-        if 'Discharge Dates' in df.columns:
-            df['Discharge Dates'] = df['Discharge Dates'].apply(
-                lambda x: ', '.join(
-                    [pd.to_datetime(date, errors='coerce').strftime('%Y-%m-%d') for date in x.split(',') if
-                     date != 'N/A']) if x != 'N/A' else 'N/A'
-            )
+        for col in ['discharge_dates', 'emergency_admission_dates']:
+            if col in df.columns:
+                df[col] = df[col].apply(
+                    lambda x: ', '.join(
+                        [pd.to_datetime(date.strip(), errors='coerce').strftime('%Y-%m-%d') for date in x.split(',') if
+                         date.strip()]
+                    ) if x != 'N/A' else 'N/A'
+                )
 
-        # Convert date format for Emergency Admission Dates
-        if 'Emergency Admission Dates' in df.columns:
-            df['Emergency Admission Dates'] = df['Emergency Admission Dates'].apply(
-                lambda x: ', '.join(
-                    [pd.to_datetime(date, errors='coerce').strftime('%Y-%m-%d') for date in x.split(',') if
-                     date != 'N/A']) if x != 'N/A' else 'N/A'
-            )
-
-        # Apply Search Filter if Query is Entered
+        # Apply search filters
         if search_query:
+            search_query = search_query.lower()
             df = df[df.apply(
                 lambda row: (
-                        search_query.lower() in str(row['Patient ID']).lower() or
-                        search_query.lower() in row['Patient Name'].lower() or
-                        search_query.lower() in str(row['Medicine']).lower() or
-                        search_query.lower() in str(row['Quantity']).lower() or
-                        search_query.lower() in str(row['Assigned Doctors']).lower()
-                # Added search for assigned doctors
+                        search_query in str(row['patient_id']).lower() or
+                        search_query in str(row['patient_name']).lower() or
+                        search_query in str(row['medicine']).lower() or
+                        search_query in str(row['quantity']).lower() or
+                        search_query in str(row['assigned_doctors']).lower()
                 ), axis=1
             )]
 
-        # Display the patient history data
-        st.dataframe(df)
+        # Display formatted DataFrame
+        st.dataframe(df.rename(columns=lambda x: x.replace('_', ' ').title()))
 
-        # Add a download button for exporting the patient history
+        # Export as CSV
         if st.button("📥 Download Patient History as CSV"):
             csv = df.to_csv(index=False).encode('utf-8')
             st.download_button(
@@ -3344,6 +4812,7 @@ def view_patient_history():
                 file_name="patient_history.csv",
                 mime="text/csv"
             )
+
 
 # ------------------ Ambulance Service Section ------------------
 def ambulance_service_section():
@@ -3515,6 +4984,7 @@ def ambulance_service_section():
         else:
             st.dataframe(records)
 
+
 # ----------------Reports ------------------
 def generate_pdf_report(data, title, filename):
     try:
@@ -3622,7 +5092,7 @@ def generate_reports():
 
 # ------------------ Export Data Section ------------------
 def export_data():
-    check_user_role(["Admin","Doctor", "Receptionist", "Nurse"])
+    check_user_role(["Admin", "Doctor", "Receptionist", "Nurse"])
     try:
         st.markdown('<div class="header-lightblue"><h3>📤 Export Data</h3></div>', unsafe_allow_html=True)
 
@@ -3641,13 +5111,13 @@ def export_data():
             query_mapping = {
                 "Patients": ("SELECT * FROM patients", "patients"),
                 "Rooms": ("SELECT * FROM rooms", "rooms"),
-                "Bills": ("SELECT * FROM bill_details", "bill_details"),  # Corrected table name
+                "Bills": ("SELECT * FROM bill_details", "bill_details"),
                 "Appointments": ("SELECT * FROM appointments", "appointments"),
                 "Staff": ("SELECT * FROM staff", "staff"),
                 "Inventory": ("SELECT * FROM inventory", "inventory"),
                 "Emergency Patients": ("SELECT * FROM emergency_patients", "emergency_patients"),
                 "Discharged Patients": ("SELECT * FROM discharged_patients", "discharged_patients"),
-                "Doctors": ("SELECT * FROM doctor", "doctor")  # Corrected table name
+                "Doctors": ("SELECT * FROM doctor", "doctor")
             }
 
             # Check if the selected data type is valid
@@ -3676,6 +5146,7 @@ def export_data():
         st.error(f"Error exporting data: {e}")
         logging.error(f"Error exporting data: {e}")
 
+
 # ------------------ Streamlit UI ------------------
 if 'startup_done' not in st.session_state:
     st.session_state["startup_done"] = False
@@ -3702,35 +5173,35 @@ if "passcode_verified" not in st.session_state:
             logging.warning("Incorrect passcode entered.")
     st.stop()
 
-
 # Navigation Tabs in Sidebar
 if st.session_state.get('authenticated'):
     if st.session_state['user_role'] == "Admin":
         menu = [
-            "Dashboard","Chatbot", "Advanced Search", "Attendance Dashboard", "Doctor Section", "Manage Patients",
+            "Dashboard", "Chatbot", "Advanced Search", "Attendance Dashboard", "Doctor Section", "Manage Patients",
             "Emergency Unit", "Emergency Dashboard", "Room Info", "Billing", "Appointments", "Inventory",
             "Staff", "Patient History", "Ambulance Service", "Generate Reports", "Export Data", "Logout"
         ]
     elif st.session_state['user_role'] == "Doctor":
         menu = [
-            "Dashboard","Chatbot", "Advanced Search", "Attendance Dashboard", "Doctor Section", "Manage Patients",
-            "Emergency Unit", "Emergency Dashboard", "Room Info", "Appointments", "Patient History",  "Logout"
+            "Dashboard", "Chatbot", "Advanced Search", "Attendance Dashboard", "Doctor Section", "Manage Patients",
+            "Emergency Unit", "Emergency Dashboard", "Room Info", "Appointments", "Patient History", "Logout"
         ]
     elif st.session_state['user_role'] == "Receptionist":
         menu = [
-            "Dashboard","Chatbot", "Advanced Search", "Attendance Dashboard", "Doctor Section", "Emergency Unit",
-            "Emergency Dashboard", "Appointments", "Billing", "Inventory", "Generate Reports", "Export Data",  "Logout"
+            "Dashboard", "Chatbot", "Advanced Search", "Attendance Dashboard", "Doctor Section", "Emergency Unit",
+            "Emergency Dashboard", "Appointments", "Billing", "Inventory", "Generate Reports", "Export Data", "Logout"
         ]
     elif st.session_state['user_role'] == "Patient":
         menu = [
-            "Dashboard", "Chatbot","Advanced Search","Doctor Section", "Emergency Unit", "Patient History",
-            "Appointments",  "Logout"
+            "Dashboard", "Chatbot", "Advanced Search", "Doctor Section", "Emergency Unit", "Patient History",
+            "Appointments", "Logout"
         ]
     elif st.session_state['user_role'] == "Nurse":
         menu = [
-            "Dashboard","Chatbot", "Advanced Search", "Attendance Dashboard", "Doctor Section",
+            "Dashboard", "Chatbot", "Advanced Search", "Attendance Dashboard", "Doctor Section",
             "Manage Patients",
-            "Emergency Unit", "Emergency Dashboard", "Room Info", "Appointments","Inventory", "Patient History","Generate Reports", "Export Data",  "Logout"
+            "Emergency Unit", "Emergency Dashboard", "Room Info", "Appointments", "Inventory", "Patient History",
+            "Generate Reports", "Export Data", "Logout"
         ]
 else:
     menu = ["Login", "Register"]
@@ -3746,7 +5217,7 @@ with st.sidebar:
         if st.button(tab, key=tab):
             st.session_state["active_tab"] = tab
 
-#------------------Main content based on the active tab-------------
+# ------------------Main content based on the active tab-------------
 choice = st.session_state["active_tab"]
 
 if choice == "Login":
@@ -3761,11 +5232,9 @@ if choice == "Login":
             st.error("Invalid Credentials!")
             logging.warning(f"Failed login attempt for username: {username}")
 
-
 elif choice == "Dashboard":
     access_control()
     show_dashboard()
-
 
 elif choice == "Register":
     st.subheader("\U0001F4DD New User Registration")
@@ -3776,16 +5245,13 @@ elif choice == "Register":
     if st.button("Register"):
         register_user(new_username, new_password, full_name, user_role)
 
-
 elif choice == "Advanced Search":
     access_control()
     advanced_search()
 
-
 elif choice == "Attendance Dashboard":
     access_control()
     attendance_dashboard()
-
 
 elif choice == "Manage Patients":
     access_control()
@@ -3796,21 +5262,21 @@ elif choice == "Manage Patients":
     patient_tabs = st.tabs(["Add Patient", "View Patients", "Discharge Patient", "View Discharged Patients"])
 
     with patient_tabs[0]:
-        add_patient()  # Add Patient page
+        add_patient()
 
     with patient_tabs[1]:
-        view_patients()  # View Patients page
+        view_patients()
 
     with patient_tabs[2]:
-        discharge_patient()  # Call without arguments
+        discharge_patient()
 
     with patient_tabs[3]:
-        view_discharged_patients()  # View Discharged Patients page
+        view_discharged_patients()
 
 
 elif choice == "Emergency Unit":
     access_control()
-    if st.session_state['user_role'] not in ["Admin", "Doctor", "Receptionist","Patient", "Nurse"]:  # Added "Nurse"
+    if st.session_state['user_role'] not in ["Admin", "Doctor", "Receptionist", "Patient", "Nurse"]:  # Added "Nurse"
         st.warning("Access Denied! This feature is only available to Admin, Doctors, Receptionists, and Nurses.")
         st.stop()
 
@@ -3822,25 +5288,23 @@ elif choice == "Emergency Unit":
     ])
 
     with emergency_tabs[0]:
-        add_emergency_patient()  # Add Emergency Patient page
+        add_emergency_patient()
 
     with emergency_tabs[1]:
-        view_emergency_patients()  # View Emergency Patients page
+        view_emergency_patients()
 
     with emergency_tabs[2]:
-        discharge_patient()  # Corrected function call for discharging emergency patients
+        discharge_patient()
 
     with emergency_tabs[3]:
-        view_discharged_patients()  # View Discharged Emergency Patients page
-
+        view_discharged_patients()
 
 elif choice == "Emergency Dashboard":
     access_control()
-    if st.session_state['user_role'] not in ["Admin", "Doctor", "Receptionist","Nurse"]:  # Added "Nurse"
+    if st.session_state['user_role'] not in ["Admin", "Doctor", "Receptionist", "Nurse"]:  # Added "Nurse"
         st.warning("Access Denied! This feature is only available to Admin, Doctors, Receptionists, and Nurses.")
         st.stop()
     emergency_dashboard()
-
 
 elif choice == "Room Info":
     access_control()
@@ -3849,21 +5313,19 @@ elif choice == "Room Info":
         st.warning("🚫 Access Denied! This feature is only available to Admin, Doctors, and Nurses.")
         st.stop()
 
-    # Room Info Section with Tabs
     room_tabs = st.tabs(["🏨 Allocate Room", "📋 View Rooms", "🚪 Discharge Patient", "📜 View Discharged Patients"])
 
     with room_tabs[0]:
-        allocate_room()  # Function to allocate room to patients
+        allocate_room()
 
     with room_tabs[1]:
-        view_rooms()  # Function to display available and booked rooms
+        view_rooms()
 
     with room_tabs[2]:
-        discharge_patient()  # Call without arguments
+        discharge_patient()
 
     with room_tabs[3]:
-        view_discharged_patients()  # Function to display discharged patients
-
+        view_discharged_patients()
 
 elif choice == "Billing":
     access_control()
@@ -3876,7 +5338,6 @@ elif choice == "Billing":
     with billing_tabs[1]:
         view_bills()
 
-
 elif choice == "Appointments":
     access_control()
     # Only Admin, Doctor, Receptionist, Nurse, and Patient can access this feature
@@ -3886,15 +5347,13 @@ elif choice == "Appointments":
         )
         st.stop()
 
-    # Add tabs for Appointments section
     appointment_tabs = st.tabs(["Schedule Appointment", "View Appointments"])
 
     with appointment_tabs[0]:
-        schedule_appointment()  # Schedule Appointment page
+        schedule_appointment()
 
     with appointment_tabs[1]:
-        view_appointments()  # View Appointments page
-
+        view_appointments()
 
 elif choice == "Inventory":
     access_control()
@@ -3907,7 +5366,6 @@ elif choice == "Inventory":
     with inventory_tabs[1]:
         view_inventory()
 
-
 elif choice == "Staff":
     access_control()
     if st.session_state['user_role'] != "Admin":
@@ -3919,14 +5377,12 @@ elif choice == "Staff":
     with staff_tabs[1]:
         view_staff()
 
-
 elif choice == "Patient History":
     access_control()
     if st.session_state['user_role'] not in ["Admin", "Doctor", "Patient", "Nurse"]:  # Added "Nurse"
         st.warning("Access Denied! This feature is only available to Admin, Doctors, Patients, and Nurses.")
         st.stop()
     view_patient_history()
-
 
 elif choice == "Ambulance Service":
     access_control()
@@ -3935,7 +5391,6 @@ elif choice == "Ambulance Service":
         st.stop()
     ambulance_service_section()
 
-
 elif choice == "Generate Reports":
     access_control()
     if st.session_state['user_role'] not in ["Admin", "Nurse", "Receptionist"]:
@@ -3943,14 +5398,12 @@ elif choice == "Generate Reports":
         st.stop()
     generate_reports()
 
-
 elif choice == "Export Data":
     access_control()
     if st.session_state['user_role'] not in ["Admin", "Nurse", "Receptionist"]:
         st.warning("Access Denied! This feature is only available to Admin, Nurses, and Receptionists.")
         st.stop()
     export_data()
-
 
 elif choice == "Doctor Section":
     access_control()
@@ -3960,9 +5413,6 @@ elif choice == "Chatbot":
     access_control()
     chatbot_page()
 
-    # Chatbot is available to all authenticated users
-      # Call the chatbot main function
-
 elif choice == "Logout":
     if st.session_state.get('authenticated'):
         logout()
@@ -3970,7 +5420,7 @@ elif choice == "Logout":
         st.rerun()
     else:
         st.info("Login Session Terminated")
-#------------------- Display Message When Not Authenticated ------------------
+# ------------------- Display Message When Not Authenticated ------------------
 if not st.session_state['authenticated']:
     st.info("Please login to access and use the Hospital Management System features.")
 
